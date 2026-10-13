@@ -1,0 +1,13 @@
+{
+  "name": "virtx",
+  "version": "0.1.0",
+  "description": "Run tasks in disposable Linux micro-VMs from Python, Node.js or Rust, with a filesystem you compose.",
+  "author": {
+    "name": "brekkylab",
+    "url": "https://github.com/brekkylab"
+  },
+  "homepage": "https://github.com/brekkylab/virtx",
+  "repository": "https://github.com/brekkylab/virtx",
+  "license": "Apache-2.0",
+  "keywords": ["vm", "sandbox", "microvm", "fuse", "agent", "python", "nodejs", "rust"]
+}
