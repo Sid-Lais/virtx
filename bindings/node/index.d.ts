@@ -26,7 +26,13 @@ export declare class ConsoleClient {
    * other side hears nothing more.
    */
   _relay(frame: Buffer): Promise<Buffer>
-  /** End the session now. Closing twice is the same as closing once. */
+  /**
+   * End the session and settle once the server is gone and its mounts are let go of.
+   * Closing twice is the same as closing once.
+   *
+   * A garbage-collected console ends on a task nothing waits for, and `process.exit()` runs
+   * no finalizer at all; close it when its mounts must be down.
+   */
   close(): Promise<void>
 }
 export type JsConsoleClient = ConsoleClient
