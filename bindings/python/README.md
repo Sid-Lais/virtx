@@ -23,6 +23,27 @@ async with await (
     print(result.code, result.stdout.decode())
 ```
 
+A command's output can also be read while it runs. `exec_stream` yields what arrived since the
+last chunk, the last one carrying the exit `code`; `spawn` leaves a command running as a `Job`
+whose output you poll, while the console takes other calls:
+
+```python
+async for chunk in console.exec_stream(["sh", "-c", "make test"], timeout_ms=600_000):
+    print(chunk.stdout.decode(), end="")
+
+server = await console.spawn(["python", "-u", "-m", "http.server", "8000"])
+print((await server.poll(wait_ms=1000)).stdout.decode())  # what it has written so far
+await server.kill()
+# The server holds a job until the poll that carries its code.
+while (await server.poll(wait_ms=1000)).code is None:
+    pass
+```
+
+Breaking out of an `exec_stream` leaves its command running until the stream is closed
+(`await stream.aclose()`, or `contextlib.aclosing`) or garbage-collected, which kills it. A
+command killed at its `timeout_ms`, by `exec` or a stream, raises `ConsoleRefused` with
+`code == ErrorCode.TIMED_OUT` and what it wrote until then in `stdout` and `stderr`.
+
 Without `.cmd(..)` a console runs `virtx-uvm` from the `bin` directory of virtx's cache
 (`$VIRTX_HOME`, or the host's cache directory: see [Cache](https://github.com/brekkylab/virtx#cache)).
 
