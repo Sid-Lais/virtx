@@ -21,7 +21,8 @@
 //! takes no one else's bytes.
 //!
 //! A command's own stdio never appears here; it is captured where the command runs and
-//! returned inside an [`ExecResp`](crate::protocol::ExecResp), so one descriptor pair suffices.
+//! returned inside an [`ExecResp`](crate::protocol::ExecResp) or a
+//! [`PollResp`](crate::protocol::PollResp), so one descriptor pair suffices.
 //!
 //! # Neither is cancel-safe
 //!

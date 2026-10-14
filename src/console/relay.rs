@@ -86,6 +86,7 @@ impl ConsoleClient {
     ) -> ConsoleClient {
         ConsoleClient {
             client: Box::new(Relayed { relay, next_id: 0 }),
+            abandoned: Vec::new(),
             mounts: mounts
                 .into_iter()
                 .map(|path| {
@@ -218,6 +219,7 @@ mod tests {
         let owner = ConsoleClient {
             client: Box::new(Server(log.clone())),
             mounts: Vec::new(),
+            abandoned: Vec::new(),
         };
         (Arc::new(tokio::sync::Mutex::new(owner)), log)
     }
