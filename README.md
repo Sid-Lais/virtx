@@ -374,6 +374,17 @@ async fn main() -> anyhow::Result<()> {
 Rebuilding under the same ref moves it to the new build, while `ImageSource::digest(&built.digest)` stays on this one.  
 `images.list()` shows what's built, and `images.remove(...)` deletes an image by its ref or digest.
 
+### Tools in the VM
+
+Every VM has `/abin` on its `PATH`: static programs the server ships, which run on any image without being installed. Among them:
+
+| Program | What it does |
+|---|---|
+| `agent-browser` | Drives a Chromium installed in the image from the command line: `open <url>`, `snapshot -i` to list what can be clicked, `click @e1`, `get text @e1`. `agent-browser --help` lists the rest. |
+| `viewer` | Shows a browser in the VM live in your own browser and passes it your mouse and keyboard. `viewer --cdp 127.0.0.1:9222 --listen 127.0.0.1:4849 --token <token>` serves it from the browser's DevTools port. Publish the listen port with `.ports(...)` and open `http://localhost:<port>/#t=<token>`. |
+
+[`examples/browser.rs`](examples/browser.rs), [`browser.py`](bindings/python/examples/browser.py) and [`browser.mjs`](bindings/node/examples/browser.mjs) start Chromium with both, open example.com from the command line, and leave it for you to use in the viewer.
+
 ## Cache
 
 virtx keeps all persistent state in a single cache directory that you can safely delete at any time:
