@@ -578,21 +578,26 @@ impl ConsoleClient {
     }
 
     /// Kill and collect every job whose stream was dropped, so the server holds none of them.
+    ///
+    /// Collecting is bounded: a process that left the job's group can hold its output open
+    /// past the kill, and the call that pays for this is not that job's.
     async fn settle(&mut self) -> Result<(), Failure> {
         while let Some(&job) = self.abandoned.last() {
             match self.client.kill(KillCall { job, signal: None }).await {
-                Ok(_) => loop {
-                    let poll = PollCall {
-                        job,
-                        wait_ms: Some(STREAM_WAIT_MS),
-                        max_bytes: None,
-                    };
-                    match self.client.poll(poll).await {
-                        Ok(chunk) if chunk.code.is_none() => continue,
-                        Ok(_) | Err(Failure::Refused(_)) => break,
-                        Err(broken) => return Err(broken),
+                Ok(_) => {
+                    for _ in 0..SETTLE_POLLS {
+                        let poll = PollCall {
+                            job,
+                            wait_ms: Some(STREAM_WAIT_MS),
+                            max_bytes: None,
+                        };
+                        match self.client.poll(poll).await {
+                            Ok(chunk) if chunk.code.is_none() => {}
+                            Ok(_) | Err(Failure::Refused(_)) => break,
+                            Err(broken) => return Err(broken),
+                        }
                     }
-                },
+                }
                 // Already gone, or a refusal that will not change by asking again.
                 Err(Failure::Refused(_)) => {}
                 Err(broken) => return Err(broken),
@@ -704,6 +709,10 @@ impl Drop for ConsoleClient {
 /// How long one poll of an [`ExecStream`] waits for output. It answers as soon as any
 /// arrives, so this bounds only how often a silent command costs a round trip.
 const STREAM_WAIT_MS: u64 = 1000;
+
+/// How many polls, of [`STREAM_WAIT_MS`] each, a killed job is given to end before it is left
+/// to the server.
+const SETTLE_POLLS: usize = 5;
 
 /// An argv and a timeout, as the `params` of `exec` and `spawn`.
 fn argv(cmd: impl IntoIterator<Item = impl AsRef<str>>, timeout_ms: Option<u64>) -> ExecCall {
