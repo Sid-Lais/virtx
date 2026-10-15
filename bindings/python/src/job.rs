@@ -24,7 +24,9 @@ const STREAM_WAIT_MS: u64 = 1000;
 
 /// A spawned command, polled for its output until the poll that carries its `code`.
 ///
-/// Garbage collection does not kill it: a job may outlive the object that started it.
+/// Garbage collection does not kill it: a job may outlive the object that started it. As an
+/// `async with` block, it is discarded when the block is left; `ConsoleClient.job(id)` makes
+/// another handle to it from its id.
 #[pyclass(name = "Job", module = "virtx", frozen)]
 pub struct PyJob {
     console: Slot,
@@ -73,6 +75,31 @@ impl PyJob {
                 .await
                 .map_err(error::failure)
         })
+    }
+
+    /// Kill the job and collect it, dropping what it wrote, so the server no longer holds it.
+    /// A job already gone, or a console already closed, leaves nothing to do.
+    fn discard<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        let (console, id) = (self.console.clone(), self.id);
+        future_into_py(py, async move { discard(&console, id).await })
+    }
+
+    fn __aenter__<'py>(slf: Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {
+        let py = slf.py();
+        let slf = slf.unbind();
+        future_into_py(py, async move { Ok(slf) })
+    }
+
+    /// Leaving the block discards the job, whether or not it raised; the exception, if any,
+    /// goes on.
+    fn __aexit__<'py>(
+        &self,
+        py: Python<'py>,
+        _exc_type: Bound<'py, PyAny>,
+        _exc: Bound<'py, PyAny>,
+        _tb: Bound<'py, PyAny>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        self.discard(py)
     }
 
     fn __repr__(&self) -> String {
@@ -186,12 +213,18 @@ impl Drop for Stream {
     }
 }
 
-/// [`discard`](virtx::console::ConsoleClient::discard) `job`, unless the console is closed. A
-/// broken channel leaves nothing to do either.
-async fn reap(console: &Slot, job: JobId) {
-    if let Some(console) = console.lock().await.as_mut() {
-        let _ = console.discard(job).await;
+/// [`discard`](virtx::console::ConsoleClient::discard) `job`. A closed console has ended its
+/// jobs with it, so there is nothing to do.
+async fn discard(console: &Slot, job: JobId) -> PyResult<()> {
+    match console.lock().await.as_mut() {
+        Some(console) => console.discard(job).await.map_err(error::failure),
+        None => Ok(()),
     }
+}
+
+/// [`discard`] for a stream let go of, where a broken channel has nobody to tell.
+async fn reap(console: &Slot, job: JobId) {
+    let _ = discard(console, job).await;
 }
 
 /// A command's output as it is written: an async iterator of `Chunk`s, the last carrying the

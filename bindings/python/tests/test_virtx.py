@@ -303,3 +303,31 @@ async def test_leaving_a_stream_early_kills_its_command():
         before = await size(collected)
         await asyncio.sleep(1)
         assert await size(collected) == before
+
+
+@pytest.mark.skipif(not SERVER or not shutil.which(SERVER), reason="set $VIRTX_CONSOLE")
+async def test_a_job_in_async_with_is_discarded_when_the_block_is_left():
+    async with await job_console() as console:
+        async with await console.spawn(["sleep", "60"]) as job:
+            assert (await job.poll()).code is None
+        with pytest.raises(ConsoleRefused) as gone:
+            await job.poll()
+        assert gone.value.code == ErrorCode.UNKNOWN_JOB
+
+
+@pytest.mark.skipif(not SERVER or not shutil.which(SERVER), reason="set $VIRTX_CONSOLE")
+async def test_a_job_let_go_of_is_reached_again_by_its_id():
+    async with await job_console() as console:
+        id = (await console.spawn(["sh", "-c", "echo hi; sleep 60"])).id
+        gc.collect()
+
+        job = console.job(id)
+        assert job.id == id
+        assert (await job.poll(wait_ms=5000)).stdout == b"hi\n"
+        await job.discard()
+        with pytest.raises(ConsoleRefused) as gone:
+            await console.job(id).poll()
+        assert gone.value.code == ErrorCode.UNKNOWN_JOB
+
+        # A job already gone leaves nothing to do.
+        await job.discard()

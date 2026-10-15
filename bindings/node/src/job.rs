@@ -9,11 +9,8 @@
 use std::sync::Arc;
 
 use napi::{
-    Env,
-    bindgen_prelude::{
-        Buffer, ClassInstance, JavaScriptClassExt, JsObjectValue, Object, PromiseRaw, ToNapiValue,
-        Unknown,
-    },
+    Env, ValueType,
+    bindgen_prelude::{Buffer, Function, JsObjectValue, Object, PromiseRaw, ToNapiValue, Unknown},
     sys,
 };
 use napi_derive::napi;
@@ -51,7 +48,8 @@ impl From<PollResp> for Chunk {
 }
 
 /// A spawned command. The server holds it until the poll that carries its `code`, so poll it to
-/// its end or kill it first; garbage collection does not kill it.
+/// its end or discard it; garbage collection does not kill it. Declared with `await using`, it is
+/// discarded when its block is left; `ConsoleClient.job(id)` makes another handle to it.
 #[napi(js_name = "Job")]
 pub struct JsJob {
     console: Slot,
@@ -100,6 +98,14 @@ impl JsJob {
             let resp = held(&mut slot)?.poll(id, wait_ms, max_bytes).await;
             resp.map(Chunk::from).map_err(error::failure)
         })
+    }
+
+    /// Kill the job and collect it, dropping what it wrote, so the server no longer holds it. A
+    /// job already gone, or a console already closed, leaves nothing to do.
+    #[napi(ts_return_type = "Promise<void>")]
+    pub fn discard<'env>(&self, env: &'env Env) -> napi::Result<PromiseRaw<'env, ()>> {
+        let (console, id) = (self.console.clone(), self.id);
+        promise(env, async move { discard(&console, id).await })
     }
 
     /// Send `signal` (`SIGKILL` when omitted) to the job and everything it started; the next
@@ -196,12 +202,53 @@ impl Drop for Stream {
     }
 }
 
-/// [`discard`](virtx::console::ConsoleClient::discard) `job`, unless the console is closed. A
-/// broken channel leaves nothing to do either.
-async fn reap(console: &Slot, job: JobId) {
-    if let Some(console) = console.lock().await.as_mut() {
-        let _ = console.discard(job).await;
+/// [`discard`](virtx::console::ConsoleClient::discard) `job`. A closed console has ended its
+/// jobs with it, so there is nothing to do.
+async fn discard(console: &Slot, job: JobId) -> Result<(), Thrown> {
+    match console.lock().await.as_mut() {
+        Some(console) => console.discard(job).await.map_err(error::failure),
+        None => Ok(()),
     }
+}
+
+/// [`discard`] for a stream let go of, where a broken channel has nobody to tell.
+async fn reap(console: &Slot, job: JobId) {
+    let _ = discard(console, job).await;
+}
+
+/// Put on the classes' prototypes what `#[napi]` cannot declare: `[Symbol.asyncIterator]`, so an
+/// `ExecStream` is its own iterator for `for await`, and `[Symbol.asyncDispose]`, so a `Job`
+/// declared with `await using` is discarded at the end of its block. Once, at load.
+///
+/// `Symbol.asyncDispose` is newer than the oldest Node this package runs on, which then simply
+/// has no `await using` to support.
+pub fn symbols(env: &Env, exports: &Object) -> napi::Result<()> {
+    // `Symbol` and the classes are functions, which a checked `Object` read refuses.
+    let symbol: Object = env.get_global()?.get_named_property_unchecked("Symbol")?;
+    let prototype = |class: &str| -> napi::Result<Object> {
+        let class: Object = exports.get_named_property_unchecked(class)?;
+        class.get_named_property_unchecked("prototype")
+    };
+
+    let async_iterator: Unknown = symbol.get_named_property("asyncIterator")?;
+    let itself = env
+        .create_function_from_closure::<(), Unknown, _>("[Symbol.asyncIterator]", |ctx| {
+            ctx.this::<Unknown>()
+        })?;
+    prototype("ExecStream")?.set_property(async_iterator, itself)?;
+
+    let async_dispose: Unknown = symbol.get_named_property("asyncDispose")?;
+    if async_dispose.get_type()? != ValueType::Undefined {
+        let dispose =
+            env.create_function_from_closure::<(), Unknown, _>("[Symbol.asyncDispose]", |ctx| {
+                let this = ctx.this::<Object>()?;
+                let discard: Function<(), Unknown> =
+                    this.get_named_property_unchecked("discard")?;
+                discard.apply(this, ())
+            })?;
+        prototype("Job")?.set_property(async_dispose, dispose)?;
+    }
+    Ok(())
 }
 
 /// One step of an async iterator: `{ value: chunk, done: false }`, or `{ done: true }` with no
@@ -228,31 +275,12 @@ impl ToNapiValue for IteratorStep {
 pub struct JsExecStream(Arc<Stream>);
 
 impl JsExecStream {
-    /// The stream as JavaScript sees it: its own async iterator.
-    pub fn new<'env>(
-        env: &'env Env,
-        console: Slot,
-        runtime: Handle,
-        cmd: Vec<String>,
-        timeout_ms: Option<u64>,
-    ) -> napi::Result<ClassInstance<'env, Self>> {
-        let stream = JsExecStream(Arc::new(Stream {
+    pub fn new(console: Slot, runtime: Handle, cmd: Vec<String>, timeout_ms: Option<u64>) -> Self {
+        JsExecStream(Arc::new(Stream {
             console,
             runtime,
             state: Mutex::new(Streaming::Ready(cmd, timeout_ms)),
-        }));
-        let instance = stream.into_instance(env)?;
-        // `Symbol` is a function, which a checked `Object` read refuses.
-        let symbol: Object = env.get_global()?.get_named_property_unchecked("Symbol")?;
-        let async_iterator: Unknown = symbol.get_named_property("asyncIterator")?;
-        let itself = env
-            .create_function_from_closure::<(), Unknown, _>("[Symbol.asyncIterator]", |ctx| {
-                ctx.this::<Unknown>()
-            })?;
-        instance
-            .as_object(env)
-            .set_property(async_iterator, itself)?;
-        Ok(instance)
+        }))
     }
 }
 

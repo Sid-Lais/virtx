@@ -31,13 +31,16 @@ whose output you poll, while the console takes other calls:
 async for chunk in console.exec_stream(["sh", "-c", "make test"], timeout_ms=600_000):
     print(chunk.stdout.decode(), end="")
 
-server = await console.spawn(["python", "-u", "-m", "http.server", "8000"])
-print((await server.poll(wait_ms=1000)).stdout.decode())  # what it has written so far
-await server.kill()
-# The server holds a job until the poll that carries its code.
-while (await server.poll(wait_ms=1000)).code is None:
-    pass
+async with await console.spawn(["python", "-u", "-m", "http.server", "8000"]) as server:
+    print((await server.poll(wait_ms=1000)).stdout.decode())  # what it has written so far
+    ...  # test against it
+# Leaving the block discards the job: killed, and let go of by the server.
 ```
+
+The server holds a job until the poll that carries its `code`, up to a bound on how many it
+holds. A job that should outlive the code that started it is spawned without `async with`, and
+`await job.discard()` ends it later; if the `Job` itself was let go of, `console.job(id)` makes
+another handle from the id it had.
 
 Breaking out of an `exec_stream` leaves its command running until the stream is closed
 (`await stream.aclose()`, or `contextlib.aclosing`) or garbage-collected, which kills it. A

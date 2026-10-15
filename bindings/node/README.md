@@ -36,12 +36,17 @@ for await (const chunk of console_.execStream(['sh', '-c', 'make test'], 600_000
   process.stdout.write(chunk.stdout)
 }
 
-const server = await console_.spawn(['python', '-u', '-m', 'http.server', '8000'])
-console.log((await server.poll(1000)).stdout.toString()) // what it has written so far
-await server.kill()
-// The server holds a job until the poll that carries its code.
-while ((await server.poll(1000)).code === undefined);
+{
+  await using server = await console_.spawn(['python', '-u', '-m', 'http.server', '8000'])
+  console.log((await server.poll(1000)).stdout.toString()) // what it has written so far
+  // ... test against it
+} // Leaving the block discards the job: killed, and let go of by the server.
 ```
+
+The server holds a job until the poll that carries its `code`, up to a bound on how many it
+holds. `await using` needs a Node with `Symbol.asyncDispose` (24 and later); elsewhere, and for
+a job that should outlive the code that started it, `await job.discard()` ends it. If the `Job`
+itself was let go of, `console_.job(id)` makes another handle from the id it had.
 
 Leaving a `for await` early (`break`, `return`, a throw) kills the stream's command, as does
 garbage collection of a stream nothing iterates any more.

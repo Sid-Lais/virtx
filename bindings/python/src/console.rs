@@ -7,7 +7,7 @@ use pyo3_async_runtimes::tokio::{future_into_py, get_runtime};
 use tokio::sync::Mutex;
 use virtx::{
     console::{ConsoleClient, ConsoleClientBuilder},
-    protocol::{ExecResp, Failure, Port, ReadResp},
+    protocol::{ExecResp, Failure, JobId, Port, ReadResp},
 };
 
 use crate::{
@@ -227,6 +227,13 @@ impl PyConsoleClient {
             };
             Ok(PyJob::new(console, id))
         })
+    }
+
+    /// A handle to the job this console spawned under `id`, for one whose `Job` was let go
+    /// of. Nothing is asked of the server: an id it does not hold is `UNKNOWN_JOB` at the
+    /// first call.
+    fn job(&self, id: JobId) -> PyJob {
+        PyJob::new(self.console.clone(), id)
     }
 
     /// Run a command and iterate its output as it is written; spawned on the first

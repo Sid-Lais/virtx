@@ -129,7 +129,8 @@ class Chunk:
 
 class Job:
     """A spawned command. The server holds it until the poll that carries its ``code``, so poll
-    it to its end or kill it first; garbage collection does not kill it."""
+    it to its end or discard it; garbage collection does not kill it. As an ``async with``
+    block, it is discarded when the block is left."""
 
     @property
     def id(self) -> int: ...
@@ -140,6 +141,11 @@ class Job:
     async def kill(self, signal: int | None = None) -> None:
         """Send ``signal`` (``SIGKILL`` when ``None``) to the job and everything it started;
         the next poll reports how it ended."""
+    async def discard(self) -> None:
+        """Kill the job and collect it, dropping what it wrote, so the server no longer holds
+        it. A job already gone, or a console already closed, leaves nothing to do."""
+    async def __aenter__(self) -> Self: ...
+    async def __aexit__(self, exc_type: object, exc: object, tb: object) -> None: ...
 
 class ExecStream:
     """A command's output as it is written: each ``Chunk`` is what arrived since the last, and
@@ -184,6 +190,10 @@ class ConsoleClient:
     async def spawn(self, cmd: list[str], timeout_ms: int | None = None) -> Job:
         """Start a command and return its ``Job`` at once; the console takes other calls while
         it runs."""
+    def job(self, id: int) -> Job:
+        """A handle to the job this console spawned under ``id``, for one whose ``Job`` was let
+        go of. Nothing is asked of the server: an id it does not hold raises ``UNKNOWN_JOB`` at
+        the first call."""
     def exec_stream(self, cmd: list[str], timeout_ms: int | None = None) -> ExecStream:
         """Run a command and iterate its output as it is written:
         ``async for chunk in console.exec_stream(cmd)``. Spawned on the first iteration,

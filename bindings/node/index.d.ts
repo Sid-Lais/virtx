@@ -19,12 +19,18 @@ export declare class ConsoleClient {
    * Start a command and settle with its `Job` at once, leaving it running; the console takes
    * other calls meanwhile.
    */
-  spawn(cmd: Array<string>, timeoutMs?: number | undefined | null): Promise<Job>
+  spawn(cmd: Array<string>, timeoutMs?: number | undefined | null): Promise<Job & AsyncDisposable>
   /**
    * Run a command and iterate its output as it is written, with `for await`. Spawned on the
    * first `next()`, which rejects with any refusal to start it.
    */
   execStream(cmd: Array<string>, timeoutMs?: number | undefined | null): ExecStream & AsyncIterable<Chunk>
+  /**
+   * A handle to the job this console spawned under `id`, for one whose `Job` was let go of.
+   * Nothing is asked of the server: an id it does not hold is `UNKNOWN_JOB` at the first
+   * call.
+   */
+  job(id: number): Job & AsyncDisposable
   read(path: string, offset?: number | undefined | null, len?: number | undefined | null): Promise<ReadResult>
   /** Put `data` in a file, settling with the file's size afterwards. */
   write(path: string, data: Buffer | string, offset?: number | undefined | null): Promise<number>
@@ -156,7 +162,8 @@ export type JsImageSource = ImageSource
 
 /**
  * A spawned command. The server holds it until the poll that carries its `code`, so poll it to
- * its end or kill it first; garbage collection does not kill it.
+ * its end or discard it; garbage collection does not kill it. Declared with `await using`, it is
+ * discarded when its block is left; `ConsoleClient.job(id)` makes another handle to it.
  */
 export declare class Job {
   get id(): number
@@ -166,6 +173,11 @@ export declare class Job {
    * `TIMED_OUT`, carrying its last bytes.
    */
   poll(waitMs?: number | undefined | null, maxBytes?: number | undefined | null): Promise<Chunk>
+  /**
+   * Kill the job and collect it, dropping what it wrote, so the server no longer holds it. A
+   * job already gone, or a console already closed, leaves nothing to do.
+   */
+  discard(): Promise<void>
   /**
    * Send `signal` (`SIGKILL` when omitted) to the job and everything it started; the next
    * poll reports how it ended.

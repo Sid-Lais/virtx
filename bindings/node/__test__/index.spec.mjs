@@ -266,3 +266,33 @@ test('leaving a stream early kills its command', { skip: !SERVER && 'set $VIRTX_
     await console_.close()
   }
 })
+
+test('a job is discarded when its await using block is left', { skip: (!SERVER && 'set $VIRTX_CONSOLE') || (!Symbol.asyncDispose && 'this Node has no Symbol.asyncDispose') }, async () => {
+  const console_ = await jobConsole()
+  try {
+    const job = await console_.spawn(['sleep', '60'])
+    assert.ok((await job.poll()).code == null)
+    // What `await using` calls at the end of its block; spelled out, since older Node cannot
+    // parse the declaration.
+    await job[Symbol.asyncDispose]()
+    await assert.rejects(job.poll(), { code: 'UNKNOWN_JOB' })
+  } finally {
+    await console_.close()
+  }
+})
+
+test('a job let go of is reached again by its id', { skip: !SERVER && 'set $VIRTX_CONSOLE' }, async () => {
+  const console_ = await jobConsole()
+  try {
+    const { id } = await console_.spawn(['sh', '-c', 'echo hi; sleep 60'])
+    const job = console_.job(id)
+    assert.equal(job.id, id)
+    assert.equal((await job.poll(5000)).stdout.toString(), 'hi\n')
+    await job.discard()
+    await assert.rejects(console_.job(id).poll(), { code: 'UNKNOWN_JOB' })
+    // A job already gone leaves nothing to do.
+    await job.discard()
+  } finally {
+    await console_.close()
+  }
+})

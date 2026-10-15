@@ -28,3 +28,9 @@ mod error;
 mod fs;
 mod image;
 mod job;
+
+/// Run once the classes are registered: see [`job::symbols`].
+#[napi_derive::napi(module_exports)]
+pub fn symbols(exports: napi::bindgen_prelude::Object, env: napi::Env) -> napi::Result<()> {
+    job::symbols(&env, &exports)
+}

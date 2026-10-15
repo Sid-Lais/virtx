@@ -4,7 +4,7 @@ use std::{future::Future, sync::Arc};
 
 use napi::{
     Env, JsError,
-    bindgen_prelude::{Buffer, ClassInstance, PromiseRaw, This, ToNapiValue},
+    bindgen_prelude::{Buffer, PromiseRaw, This, ToNapiValue},
 };
 use napi_derive::napi;
 use tokio::{runtime::Handle, sync::Mutex};
@@ -304,7 +304,7 @@ impl JsConsoleClient {
 
     /// Start a command and settle with its `Job` at once, leaving it running; the console takes
     /// other calls meanwhile.
-    #[napi(ts_return_type = "Promise<Job>")]
+    #[napi(ts_return_type = "Promise<Job & AsyncDisposable>")]
     pub fn spawn<'env>(
         &self,
         env: &'env Env,
@@ -326,15 +326,26 @@ impl JsConsoleClient {
     /// Run a command and iterate its output as it is written, with `for await`. Spawned on the
     /// first `next()`, which rejects with any refusal to start it.
     #[napi(ts_return_type = "ExecStream & AsyncIterable<Chunk>")]
-    pub fn exec_stream<'env>(
+    pub fn exec_stream(
         &self,
-        env: &'env Env,
+        env: &Env,
         cmd: Vec<String>,
         timeout_ms: Option<i64>,
-    ) -> napi::Result<ClassInstance<'env, JsExecStream>> {
+    ) -> napi::Result<JsExecStream> {
         let timeout_ms = unsigned(timeout_ms, "timeoutMs").map_err(|e| thrown(env, e))?;
         let (console, runtime) = (self.console.clone(), self.runtime.clone());
-        JsExecStream::new(env, console, runtime, cmd, timeout_ms)
+        Ok(JsExecStream::new(console, runtime, cmd, timeout_ms))
+    }
+
+    /// A handle to the job this console spawned under `id`, for one whose `Job` was let go of.
+    /// Nothing is asked of the server: an id it does not hold is `UNKNOWN_JOB` at the first
+    /// call.
+    #[napi(ts_return_type = "Job & AsyncDisposable")]
+    pub fn job(&self, env: &Env, id: i64) -> napi::Result<JsJob> {
+        let id = unsigned(Some(id), "id")
+            .map_err(|e| thrown(env, e))?
+            .unwrap_or_default();
+        Ok(JsJob::new(self.console.clone(), self.runtime.clone(), id))
     }
 
     #[napi(ts_return_type = "Promise<ReadResult>")]

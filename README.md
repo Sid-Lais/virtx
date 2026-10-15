@@ -393,13 +393,12 @@ async def main() -> None:
         ):
             print(chunk.stdout.decode(), end="")
 
-        # Left running while the console answers other calls.
-        job = await console.spawn(["sh", "-c", "while true; do date >> /tmp/log; sleep 1; done"])
-        await asyncio.sleep(2)
-        print((await console.read("/tmp/log")).data.decode(), end="")
-        await job.kill()
-        while (await job.poll(wait_ms=1000)).code is None:
-            pass
+        # Left running while the console answers other calls, and discarded with the block.
+        async with await console.spawn(
+            ["sh", "-c", "while true; do date >> /tmp/log; sleep 1; done"]
+        ):
+            await asyncio.sleep(2)
+            print((await console.read("/tmp/log")).data.decode(), end="")
 
         # A command killed at its timeout still says what it wrote.
         try:
@@ -412,7 +411,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-A job is held until the poll that carries its code, and `stop` ends every job still running. Node has the same as `execStream` and `spawn`, and Rust as `exec_stream`, `spawn`, `poll` and `kill` on `ConsoleClient`.
+A job is held until the poll that carries its code, or until it is discarded, as leaving the `async with` block does; `stop` ends every job still running. Node has the same as `execStream` and `spawn`, and Rust as `exec_stream`, `spawn`, `poll` and `kill` on `ConsoleClient`.
 
 ## Cache
 
