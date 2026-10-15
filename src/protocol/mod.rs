@@ -128,8 +128,10 @@ pub trait Client: Send {
     /// An [`Error`](crate::protocol::Response::Error) arrives as
     /// [`Refused`](Failure::Refused), so a caller handles "no answer" in one shape.
     ///
-    /// Not cancel-safe: dropping this future mid-call may leave a half-read frame, so the
-    /// client is unusable afterwards. Bound an execution with
+    /// Not cancel-safe: dropping this future while its answer is being read leaves a
+    /// half-read frame, and the client unusable afterwards. Dropped after its request went
+    /// out and before any of its answer arrived, the answer is still owed: the server sends it
+    /// before the next call's, and the transport skips it. Bound an execution with
     /// [`timeout_ms`](ExecCall::timeout_ms), not by cancelling the wait.
     fn call(&mut self, call: Call) -> BoxFuture<'_, Result<Response, Failure>>;
 

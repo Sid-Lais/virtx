@@ -493,8 +493,10 @@ impl ConsoleClient {
     ///
     /// `timeout_ms` is the only way to bound it; `None` may run forever. A command killed at
     /// it is [`TIMED_OUT`](crate::protocol::Error::TIMED_OUT), with what it wrote until then in
-    /// [`Error::output`](crate::protocol::Error::output). Dropping this future instead leaves the command running and an
-    /// answer pending on the channel.
+    /// [`Error::output`](crate::protocol::Error::output). Dropping this future instead leaves the
+    /// command running and its answer owed: the server answers one call at a time, so the
+    /// next call waits for the command to end and its late answer is skipped. A command that
+    /// may need stopping is [`spawn`](Self::spawn)ed, and its job killed.
     pub async fn exec(
         &mut self,
         cmd: impl IntoIterator<Item = impl AsRef<str>>,
@@ -837,7 +839,7 @@ impl Stream for ExecStream<'_> {
 
 impl Drop for ExecStream<'_> {
     /// A job still running when its stream goes is killed before the console's next call. A
-    /// poll still out does this through its [`Lent`] console.
+    /// poll still out does this through the console it was lent.
     fn drop(&mut self) {
         if let Streaming::Idle(console) = &mut self.state {
             console.abandoned.push(self.job);

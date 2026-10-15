@@ -24,7 +24,8 @@ pub const VERSION: &str = "2.0";
 ///
 /// Allocated by the client, counting up from zero; the server attaches no meaning to it.
 /// With one request outstanding, the id buys certainty rather than concurrency: an
-/// answer carrying an unissued id is from a peer that lost its place, and is dropped.
+/// answer carrying an unissued id is from a peer that lost its place, and is dropped. One
+/// carrying an earlier id answers a call its caller stopped waiting for, and is skipped.
 ///
 /// JSON-RPC also allows string or null ids; this protocol issues only numbers.
 pub type RequestId = u64;

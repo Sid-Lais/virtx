@@ -131,6 +131,8 @@ Nothing on the answering side reads a meaning into the number.
 There is a single request outstanding at a time.
 So what an `id` earns is not concurrency but **certainty about what an answer answers** — a response carrying an id nobody issued is a peer that has lost its place, and it can be dropped instead of being mistaken for the answer that was due.
 
+A response carrying an *earlier* id is something else: the answer to a call whose caller stopped waiting for it — a stream dropped while its `poll` waited, say. The server owed it and answers in order, so it arrives ahead of the next call's and is skipped by the same pairing. Only a caller that stops between frames leaves that behind; one that stops partway through reading a frame has lost its place in the stream.
+
 **Pair by `id`, not by position.**
 
 ### Where this departs from the spec
