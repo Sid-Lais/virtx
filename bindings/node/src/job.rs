@@ -29,10 +29,6 @@ use crate::{
 /// so this bounds only how often a silent command costs a round trip.
 const STREAM_WAIT_MS: u64 = 1000;
 
-/// How many polls, of [`STREAM_WAIT_MS`] each, a killed job is given to end before it is left
-/// to the server.
-const REAP_POLLS: usize = 5;
-
 /// What a job wrote since the last poll.
 #[napi(object)]
 pub struct Chunk {
@@ -200,23 +196,11 @@ impl Drop for Stream {
     }
 }
 
-/// `SIGKILL` `job` and poll it until the server lets it go. A job already gone, or a console
-/// closed or broken, leaves nothing to do.
-///
-/// Bounded, since it holds the console: a process that left the job's group can keep its
-/// output open past the kill.
+/// [`discard`](virtx::console::ConsoleClient::discard) `job`, unless the console is closed. A
+/// broken channel leaves nothing to do either.
 async fn reap(console: &Slot, job: JobId) {
-    let mut slot = console.lock().await;
-    let Some(console) = slot.as_mut() else {
-        return;
-    };
-    if console.kill(job, None).await.is_ok() {
-        for _ in 0..REAP_POLLS {
-            match console.poll(job, Some(STREAM_WAIT_MS), None).await {
-                Ok(chunk) if chunk.code.is_none() => {}
-                _ => break,
-            }
-        }
+    if let Some(console) = console.lock().await.as_mut() {
+        let _ = console.discard(job).await;
     }
 }
 

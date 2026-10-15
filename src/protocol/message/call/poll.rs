@@ -17,6 +17,9 @@ pub struct PollCall {
 
     /// At most this many bytes of each stream; the rest waits for the next `poll`. `None` is
     /// as many as one message holds.
+    ///
+    /// `0` is [`INVALID_PARAMS`](crate::protocol::Error::INVALID_PARAMS): the end is reported
+    /// only behind everything written before it, which a poll taking nothing never reaches.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_bytes: Option<u64>,
 }

@@ -460,7 +460,7 @@ Asking would therefore re-encode base64 at exactly the point the byte type was t
 
 ```json
 {"jsonrpc":"2.0","id":2,"method":"exec","params":{"cmd":["sh","-c","echo started; echo err >&2; sleep 5"],"timeout_ms":1000}}
-{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"killed after 1000ms","data":{"code":137,"stdout":{"$binary":…},"stderr":{"$binary":…},"truncated":false}}}
+{"jsonrpc":"2.0","id":2,"error":{"code":-32000,"message":"killed after 1000ms","data":{"code":137,"stdout":{"$binary":{"base64":"c3RhcnRlZAo=","subType":"00"}},"stderr":{"$binary":{"base64":"ZXJyCg==","subType":"00"}},"truncated":false}}}
 ```
 
 A command killed at its `timeout_ms` is refused with `TIMED_OUT`, and the error's `data` is what an `exec` result would have been: the code the kill left it with, and everything it wrote up to the kill.
@@ -510,13 +510,13 @@ That is the trade, and it is worth taking: a shell has the same one, and an agen
 {"jsonrpc":"2.0","id":3,"method":"spawn","params":{"cmd":["sh","-c","for i in 1 2 3; do echo tick $i; sleep 1; done"]}}
 {"jsonrpc":"2.0","id":3,"method":"spawn","result":{"job":0}}
 {"jsonrpc":"2.0","id":4,"method":"poll","params":{"job":0,"wait_ms":5000}}
-{"jsonrpc":"2.0","id":4,"method":"poll","result":{"stdout":{"$binary":…"tick 1\n"},"stderr":{"$binary":…},"truncated":false}}
+{"jsonrpc":"2.0","id":4,"method":"poll","result":{"stdout":{"$binary":{"base64":"dGljayAxCg==","subType":"00"}},"stderr":{"$binary":{"base64":"","subType":"00"}},"truncated":false}}
 {"jsonrpc":"2.0","id":5,"method":"read","params":{"path":"/work/out/log.txt"}}
 {"jsonrpc":"2.0","id":5,"method":"read","result":{"data":…,"size":…}}
 {"jsonrpc":"2.0","id":6,"method":"poll","params":{"job":0,"wait_ms":5000}}
-{"jsonrpc":"2.0","id":6,"method":"poll","result":{"stdout":{"$binary":…"tick 2\n"},"stderr":{"$binary":…},"truncated":false}}
+{"jsonrpc":"2.0","id":6,"method":"poll","result":{"stdout":{"$binary":{"base64":"dGljayAyCg==","subType":"00"}},"stderr":{"$binary":{"base64":"","subType":"00"}},"truncated":false}}
 …
-{"jsonrpc":"2.0","id":9,"method":"poll","result":{"stdout":{"$binary":…},"stderr":{"$binary":…},"truncated":false,"code":0}}
+{"jsonrpc":"2.0","id":9,"method":"poll","result":{"stdout":{"$binary":{"base64":"","subType":"00"}},"stderr":{"$binary":{"base64":"","subType":"00"}},"truncated":false,"code":0}}
 ```
 
 An `exec` answers once, when the command has ended — which for a build, a test suite or a server is minutes of silence, then everything at once, and a console that can be asked nothing else meanwhile.
@@ -532,7 +532,7 @@ A **job** is the same command split into calls that each answer at once:
 |---|---|
 | `job` | a number the server chose, naming the job from its `spawn` until the `poll` that reports its end. Nothing else is read into it. |
 | `wait_ms` | how long a `poll` waits for new output, or for the end, when there is none yet. It answers as soon as either arrives, so a client polling in a loop sets this rather than spinning. Omitted is an answer at once, empty if nothing is new. |
-| `max_bytes` | at most this many bytes of each stream in this answer; the rest waits for the next `poll`. Omitted is as much as one frame holds. |
+| `max_bytes` | at most this many bytes of each stream in this answer; the rest waits for the next `poll`. Omitted is as much as one frame holds. `0` is `-32602`: a `poll` that may take nothing could never reach the end behind what is waiting. |
 | `stdout`/`stderr` | `Binary`, what was written since the last `poll`, kept apart as an `exec`'s are. |
 | `truncated` | the job wrote more than the server holds between two `poll`s, and the **oldest** of it was dropped before these bytes. How much a server holds is its own; a client that polls with a `wait_ms` rarely meets it. |
 | `code` | present on the last answer, once the job has ended and everything it wrote has been handed back — the same code an `exec` would have answered. The job is gone after that answer. |
@@ -742,7 +742,7 @@ An `error` is the only failure channel, and the numeric `code` is what makes it 
 | `-32016` | `spawn` | **too many jobs** — the server already holds as many as it will. Apart from `BOOT_FAILED` because the fix is the client's: poll a job to its end, or kill it, and spawn again. |
 | `-32600` | any | invalid request. |
 | `-32601` | any | method not found |
-| `-32602` | any | invalid params — an empty argv `cmd`, a `kill` with no such signal, a mount that is not one, two mounts asking for the same path, a port on a session with `network: false`, a port of `0`, or a host port already taken on the server's machine. Apart from `UNSUPPORTED_MOUNT` because it says something different: the frame is wrong, rather than well formed and asking for a kind this build has not got. |
+| `-32602` | any | invalid params — an empty argv `cmd`, a `kill` with no such signal, a `poll` with a `max_bytes` of `0`, a mount that is not one, two mounts asking for the same path, a port on a session with `network: false`, a port of `0`, or a host port already taken on the server's machine. Apart from `UNSUPPORTED_MOUNT` because it says something different: the frame is wrong, rather than well formed and asking for a kind this build has not got. |
 | `-32603` | any | internal error |
 
 `-32010` through `-32012` are taken by parts of this protocol the document above does not yet describe, which is why they are not in the table; `-32003`, `-32004` and `-32014` name nothing and stay that way.

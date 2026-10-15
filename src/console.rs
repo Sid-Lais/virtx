@@ -577,31 +577,39 @@ impl ConsoleClient {
         })
     }
 
-    /// Kill and collect every job whose stream was dropped, so the server holds none of them.
+    /// Kill `job` and collect it, so the server no longer holds it: what to do with a job
+    /// whose output nobody will read.
     ///
-    /// Collecting is bounded: a process that left the job's group can hold its output open
-    /// past the kill, and the call that pays for this is not that job's.
-    async fn settle(&mut self) -> Result<(), Failure> {
-        while let Some(&job) = self.abandoned.last() {
-            match self.client.kill(KillCall { job, signal: None }).await {
-                Ok(_) => {
-                    for _ in 0..SETTLE_POLLS {
-                        let poll = PollCall {
-                            job,
-                            wait_ms: Some(STREAM_WAIT_MS),
-                            max_bytes: None,
-                        };
-                        match self.client.poll(poll).await {
-                            Ok(chunk) if chunk.code.is_none() => {}
-                            Ok(_) | Err(Failure::Refused(_)) => break,
-                            Err(broken) => return Err(broken),
-                        }
-                    }
-                }
-                // Already gone, or a refusal that will not change by asking again.
-                Err(Failure::Refused(_)) => {}
+    /// Collecting is bounded, since a process that left the job's group can hold its output
+    /// open past the kill; such a job is left to the server. A job already gone is not an
+    /// error. `Err` is only a broken channel.
+    pub async fn discard(&mut self, job: JobId) -> Result<(), Failure> {
+        match self.client.kill(KillCall { job, signal: None }).await {
+            Ok(_) => {}
+            // Already gone, or a refusal that will not change by asking again.
+            Err(Failure::Refused(_)) => return Ok(()),
+            Err(broken) => return Err(broken),
+        }
+        for _ in 0..DISCARD_POLLS {
+            let poll = PollCall {
+                job,
+                wait_ms: Some(STREAM_WAIT_MS),
+                max_bytes: None,
+            };
+            match self.client.poll(poll).await {
+                Ok(chunk) if chunk.code.is_none() => {}
+                Ok(_) | Err(Failure::Refused(_)) => break,
                 Err(broken) => return Err(broken),
             }
+        }
+        Ok(())
+    }
+
+    /// [`discard`](Self::discard) every job whose stream was dropped, before the call that
+    /// comes next.
+    pub(crate) async fn settle(&mut self) -> Result<(), Failure> {
+        while let Some(&job) = self.abandoned.last() {
+            self.discard(job).await?;
             self.abandoned.pop();
         }
         Ok(())
@@ -710,9 +718,9 @@ impl Drop for ConsoleClient {
 /// arrives, so this bounds only how often a silent command costs a round trip.
 const STREAM_WAIT_MS: u64 = 1000;
 
-/// How many polls, of [`STREAM_WAIT_MS`] each, a killed job is given to end before it is left
-/// to the server.
-const SETTLE_POLLS: usize = 5;
+/// How many polls, of [`STREAM_WAIT_MS`] each, a killed job is given to end before
+/// [`ConsoleClient::discard`] leaves it to the server.
+const DISCARD_POLLS: usize = 5;
 
 /// An argv and a timeout, as the `params` of `exec` and `spawn`.
 fn argv(cmd: impl IntoIterator<Item = impl AsRef<str>>, timeout_ms: Option<u64>) -> ExecCall {

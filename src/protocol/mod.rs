@@ -117,8 +117,8 @@ pub use message::*;
 /// [`Response`] becomes what its method returns.
 ///
 /// `&mut self` throughout, with no `&self`-plus-lock: one call is outstanding at a time,
-/// and a `read` interleaved with a running command is a question the server cannot answer
-/// yet. The exclusive borrow checks this; for concurrency, open a second console.
+/// and the exclusive borrow checks this. A command that should run while other calls go out
+/// is [`spawn`](Self::spawn)ed and polled; for calls that truly overlap, open a second console.
 pub trait Client: Send {
     /// Make one call and wait for its response.
     ///

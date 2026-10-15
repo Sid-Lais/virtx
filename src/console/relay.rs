@@ -50,6 +50,8 @@ impl ConsoleClient {
             }),
 
             Message::Request { id, call } => {
+                // This console's own dropped streams go first, as before any of its own calls.
+                self.settle().await?;
                 let result = match self.client.call(call).await {
                     Ok(answer) => answer,
                     Err(Failure::Refused(error)) => Response::Error(error),
@@ -172,7 +174,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::*;
-    use crate::protocol::{ExecResp, InitCall, Method};
+    use crate::protocol::{ExecResp, InitCall, KillResp, Method, PollResp};
 
     /// An owner's channel: answers `exec` with its argv joined, refuses a `cat` of nothing,
     /// and records every method it was handed.
@@ -189,6 +191,12 @@ mod tests {
                     Call::Exec(exec) => Ok(Response::Exec(ExecResp {
                         stdout: exec.cmd.join(" ").into_bytes(),
                         ..ExecResp::default()
+                    })),
+                    Call::Kill(_) => Ok(Response::Kill(KillResp {})),
+                    // A killed job, ended by the first poll after the kill.
+                    Call::Poll(_) => Ok(Response::Poll(PollResp {
+                        code: Some(137),
+                        ..PollResp::default()
                     })),
                     _ => Err(Failure::broken("unscripted")),
                 }
@@ -308,5 +316,22 @@ mod tests {
             attached.exec(["true"], None).await,
             Err(Failure::Broken(_))
         ));
+    }
+
+    /// A job the owner's dropped stream left running is killed before a relayed call goes out,
+    /// as it would be before one of the owner's own.
+    #[tokio::test]
+    async fn a_relayed_call_settles_the_owners_dropped_streams_first() {
+        let (owner, log) = owner();
+        owner.lock().await.abandoned.push(5);
+        let mut attached = ConsoleClient::attach(Direct(owner.clone()), ["/work"]);
+
+        attached.exec(["echo", "hi"], None).await.unwrap();
+
+        assert_eq!(
+            *log.lock().unwrap(),
+            [Method::Kill, Method::Poll, Method::Exec]
+        );
+        assert!(owner.lock().await.abandoned.is_empty());
     }
 }
