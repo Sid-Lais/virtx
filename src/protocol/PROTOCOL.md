@@ -530,7 +530,7 @@ A **job** is the same command split into calls that each answer at once:
 
 | field | |
 |---|---|
-| `job` | a number the server chose, naming the job from its `spawn` until the `poll` that reports its end. Nothing else is read into it. |
+| `job` | a number the server chose, naming the job from its `spawn` until the `poll` that reports its end. Never reused within the session, across a `stop` and the boot after it too, so an id kept past its job is `UNKNOWN_JOB` rather than another job's. Nothing else is read into it. |
 | `wait_ms` | how long a `poll` waits for new output, or for the end, when there is none yet. It answers as soon as either arrives, so a client polling in a loop sets this rather than spinning. Omitted is an answer at once, empty if nothing is new. |
 | `max_bytes` | at most this many bytes of each stream in this answer; the rest waits for the next `poll`. Omitted is as much as one frame holds. `0` is `-32602`: a `poll` that may take nothing could never reach the end behind what is waiting. |
 | `stdout`/`stderr` | `Binary`, what was written since the last `poll`, kept apart as an `exec`'s are. |
@@ -549,6 +549,8 @@ A `kill` is answered as soon as the signal is sent and says nothing of whether i
 A backend that has to release the boot for some other call — a `snapshot`, where the session's writes are read off a disk the machine is holding — ends its jobs too; a client that keeps a server running across calls takes its snapshot when it has nothing running.
 
 **A server holds a bounded number of jobs**, running or ended and not yet polled to their end, and a `spawn` past it is `TOO_MANY_JOBS`. The bound is what keeps a client that spawns and never polls from filling the server with output nobody will read; a client that polls every job to its end never meets it. A `kill` frees nothing by itself: the slot is the job's until the `poll` that reports its end.
+
+**Which servers speak it.** A `TIMED_OUT` carrying `data` reaches any client, since a reader that does not know the member ignores it. The three methods do not: a server that predates them cannot read the frame, and an unknown method is [refused when reading](#what-is-refused-when-reading), which ends the channel rather than answering. So a client uses them only against a server release that has them — which is what `ensure_virtx` fetches, the release a build was tested with.
 
 #### Why the client pulls
 
@@ -661,6 +663,8 @@ Sending it at all is what lets the other end tell a finished session from a peer
 A console attached through a relay never sends it: the session ends when its owner does (see [Relayed](#relayed)).
 
 An `exec` still running is still answered — a request the server accepted is one it owes a response for, and `quit` arriving first is the client's ordering rather than permission to drop it.
+
+Every job still running ends with the session, as it does with a `stop`.
 
 ---
 
