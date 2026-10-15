@@ -9,7 +9,11 @@
 //! VIRTX_CONSOLE=virtx-uvm cargo test --test console_jobs -- --nocapture
 //! ```
 
-use std::time::{Duration, Instant};
+use std::{
+    future::Future,
+    task::Poll,
+    time::{Duration, Instant},
+};
 
 use virtx::{
     console::ConsoleClient,
@@ -191,6 +195,40 @@ async fn dropping_a_stream_kills_its_job() {
     assert!(started.elapsed() < Duration::from_secs(10));
     let Err(Failure::Refused(gone)) = console.poll(job, None, None).await else {
         panic!("a job whose stream was dropped should have been killed and collected");
+    };
+    assert_eq!(gone.code, Error::UNKNOWN_JOB);
+}
+
+/// A stream dropped while its poll waits on a silent command has the job killed too, and the
+/// answer that poll was owed does not reach the next call.
+#[tokio::test]
+async fn dropping_a_stream_mid_poll_kills_its_job() {
+    let Some(mut console) = console().await else {
+        return;
+    };
+
+    let mut stream = console
+        .exec_stream(["sh", "-c", "echo serving; sleep 60"], None)
+        .await
+        .unwrap();
+    let job = stream.job();
+    assert_eq!(stream.next().await.unwrap().unwrap().stdout, b"serving\n");
+    {
+        let mut next = std::pin::pin!(stream.next());
+        let polled = std::future::poll_fn(|cx| Poll::Ready(next.as_mut().poll(cx))).await;
+        assert!(
+            polled.is_pending(),
+            "a silent command's poll should still be waiting"
+        );
+    }
+    drop(stream);
+
+    let started = Instant::now();
+    let echoed = console.exec(["echo", "next"], None).await.unwrap();
+    assert_eq!(echoed.stdout, b"next\n");
+    assert!(started.elapsed() < Duration::from_secs(10));
+    let Err(Failure::Refused(gone)) = console.poll(job, None, None).await else {
+        panic!("a job whose stream was dropped mid-poll should have been killed and collected");
     };
     assert_eq!(gone.code, Error::UNKNOWN_JOB);
 }

@@ -562,9 +562,9 @@ impl ConsoleClient {
     /// killed at `timeout_ms` ends the stream with [`TIMED_OUT`](crate::protocol::Error::TIMED_OUT) and its last
     /// bytes in [`Error::output`](crate::protocol::Error::output).
     ///
-    /// The stream holds the console. Dropping it between items kills the job before this
-    /// console's next call; dropping it while an item is awaited leaves the channel mid-answer,
-    /// as dropping any call does.
+    /// The stream holds the console. Dropping it before the job's end, between items or while
+    /// one is awaited, kills the job before this console's next call; an answer that was on its
+    /// way is skipped when it arrives.
     pub async fn exec_stream(
         &mut self,
         cmd: impl IntoIterator<Item = impl AsRef<str>>,
@@ -748,6 +748,31 @@ enum Streaming<'a> {
     Done,
 }
 
+/// The console as one poll of an [`ExecStream`] holds it. A poll dropped before its answer
+/// leaves the job to be killed before the console's next call, as a stream dropped between
+/// items does.
+struct Lent<'a> {
+    console: Option<&'a mut ConsoleClient>,
+    job: JobId,
+}
+
+impl<'a> Lent<'a> {
+    /// The console back, answered: nothing is left to kill.
+    fn give_back(mut self) -> &'a mut ConsoleClient {
+        self.console
+            .take()
+            .expect("a lent console is given back once")
+    }
+}
+
+impl Drop for Lent<'_> {
+    fn drop(&mut self) {
+        if let Some(console) = self.console.take() {
+            console.abandoned.push(self.job);
+        }
+    }
+}
+
 impl ExecStream<'_> {
     /// The job this stream is following.
     pub fn job(&self) -> JobId {
@@ -769,14 +794,19 @@ impl Stream for ExecStream<'_> {
             match std::mem::replace(&mut self.state, Streaming::Done) {
                 Streaming::Done => return Poll::Ready(None),
                 Streaming::Idle(console) => {
+                    let mut lent = Lent {
+                        console: Some(console),
+                        job,
+                    };
                     self.state = Streaming::Polling(Box::pin(async move {
                         let poll = PollCall {
                             job,
                             wait_ms: Some(STREAM_WAIT_MS),
                             max_bytes: None,
                         };
+                        let console = lent.console.as_deref_mut().expect("lent until answered");
                         let answer = console.client.poll(poll).await;
-                        (console, answer)
+                        (lent.give_back(), answer)
                     }));
                 }
                 Streaming::Polling(mut polling) => {
@@ -806,7 +836,8 @@ impl Stream for ExecStream<'_> {
 }
 
 impl Drop for ExecStream<'_> {
-    /// A job still running when its stream goes is killed before the console's next call.
+    /// A job still running when its stream goes is killed before the console's next call. A
+    /// poll still out does this through its [`Lent`] console.
     fn drop(&mut self) {
         if let Streaming::Idle(console) = &mut self.state {
             console.abandoned.push(self.job);
@@ -956,6 +987,34 @@ mod tests {
         fn notify(&mut self, notification: Notification) -> BoxFuture<'_, Result<(), Failure>> {
             self.log.methods.lock().unwrap().push(notification.method());
             Box::pin(async { Ok(()) })
+        }
+    }
+
+    /// A [`Recorder`] whose first poll never answers, as a silent command's does not within
+    /// its wait.
+    struct Silent {
+        recorder: Recorder,
+        stalled: bool,
+    }
+
+    impl Client for Silent {
+        fn call(&mut self, call: Call) -> BoxFuture<'_, Result<Response, Failure>> {
+            if matches!(call, Call::Poll(_)) && !self.stalled {
+                self.stalled = true;
+                self.recorder
+                    .log
+                    .methods
+                    .lock()
+                    .unwrap()
+                    .push(call.method());
+                self.recorder.log.calls.lock().unwrap().push(call);
+                return Box::pin(std::future::pending());
+            }
+            self.recorder.call(call)
+        }
+
+        fn notify(&mut self, notification: Notification) -> BoxFuture<'_, Result<(), Failure>> {
+            self.recorder.notify(notification)
         }
     }
 
@@ -1315,6 +1374,57 @@ mod tests {
         assert_eq!(refused.code, Error::TIMED_OUT);
         assert_eq!(refused.output(), Some(written));
         assert!(stream.next().await.is_none());
+    }
+
+    /// A stream dropped while a poll is out has the job killed before the console's next call
+    /// too: that is where a stream over a silent command spends its time.
+    #[tokio::test]
+    async fn dropping_a_stream_mid_poll_kills_its_job() {
+        let (recorder, log) = recorder(vec![
+            initialized(),
+            Response::Spawn(crate::protocol::SpawnResp { job: 3 }),
+            // The poll that never answers takes none of these.
+            Response::Kill(crate::protocol::KillResp {}),
+            polled(b"", Some(137)),
+            ran(b"hi\n"),
+        ]);
+        let client = Silent {
+            recorder,
+            stalled: false,
+        };
+        let mut console = ConsoleClient::builder()
+            .client(client)
+            .build()
+            .await
+            .unwrap();
+
+        let mut stream = console.exec_stream(["sleep", "1000"], None).await.unwrap();
+        {
+            let mut next = std::pin::pin!(stream.next());
+            let polled = std::future::poll_fn(|cx| Poll::Ready(next.as_mut().poll(cx))).await;
+            assert!(polled.is_pending(), "the poll should still be waiting");
+        }
+        drop(stream);
+
+        assert_eq!(
+            console.exec(["echo", "hi"], None).await.unwrap().stdout,
+            b"hi\n"
+        );
+        assert_eq!(
+            log.methods(),
+            [
+                Method::Init,
+                Method::Spawn,
+                Method::Poll,
+                Method::Kill,
+                Method::Poll,
+                Method::Exec
+            ]
+        );
+        let Call::Kill(kill) = log.call(3) else {
+            panic!("{:?} is not a kill", log.call(3));
+        };
+        assert_eq!(kill.job, 3);
     }
 
     /// A stream dropped before its job ended has the job killed, and collected, before the
