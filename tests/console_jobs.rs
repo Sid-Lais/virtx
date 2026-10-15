@@ -194,3 +194,28 @@ async fn dropping_a_stream_kills_its_job() {
     };
     assert_eq!(gone.code, Error::UNKNOWN_JOB);
 }
+
+/// An id held across a `stop` names nothing in the boot after it, even where the new boot
+/// starts a job of its own.
+#[tokio::test]
+async fn a_job_from_before_a_stop_is_not_the_one_after_it() {
+    let Some(mut console) = console().await else {
+        return;
+    };
+
+    let before = console.spawn(["sleep", "60"], None).await.unwrap();
+    console.stop().await.unwrap();
+    let after = console
+        .spawn(["sh", "-c", "echo after; sleep 60"], None)
+        .await
+        .unwrap();
+    assert_ne!(before, after);
+
+    let Err(Failure::Refused(gone)) = console.poll(before, None, None).await else {
+        panic!("a job from before the stop should be unknown");
+    };
+    assert_eq!(gone.code, Error::UNKNOWN_JOB);
+    let chunk = console.poll(after, Some(5000), None).await.unwrap();
+    assert_eq!(chunk.stdout, b"after\n");
+    console.discard(after).await.unwrap();
+}

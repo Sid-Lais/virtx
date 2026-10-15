@@ -101,7 +101,8 @@ impl Error {
     pub const UNKNOWN_JOB: i64 = -32015;
 
     /// `spawn`: the server already holds as many jobs as it will. A job is held until the
-    /// `poll` that reports its end, so poll or kill one first.
+    /// `poll` that reports its end, so poll one to it, killing it first if it should not
+    /// finish ([`ConsoleClient::discard`](crate::console::ConsoleClient::discard) does both).
     pub const TOO_MANY_JOBS: i64 = -32016;
 
     /// The spec codes a peer can hit here. `-32700` (parse error) belongs to the frame

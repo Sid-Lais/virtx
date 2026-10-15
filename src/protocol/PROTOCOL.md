@@ -548,7 +548,7 @@ A `kill` is answered as soon as the signal is sent and says nothing of whether i
 **A job lasts as long as the boot it runs in.** A `stop` releases what booting took, and the commands running in it end with it; so does a second `init`, which drops whatever was booted. A `poll` or `kill` naming a job the server does not hold — reported already, ended that way, or never spawned — is `UNKNOWN_JOB`.
 A backend that has to release the boot for some other call — a `snapshot`, where the session's writes are read off a disk the machine is holding — ends its jobs too; a client that keeps a server running across calls takes its snapshot when it has nothing running.
 
-**A server holds a bounded number of jobs**, running or ended and not yet polled to their end, and a `spawn` past it is `TOO_MANY_JOBS`. The bound is what keeps a client that spawns and never polls from filling the server with output nobody will read; a client that polls every job to its end, or kills it, never meets it.
+**A server holds a bounded number of jobs**, running or ended and not yet polled to their end, and a `spawn` past it is `TOO_MANY_JOBS`. The bound is what keeps a client that spawns and never polls from filling the server with output nobody will read; a client that polls every job to its end never meets it. A `kill` frees nothing by itself: the slot is the job's until the `poll` that reports its end.
 
 #### Why the client pulls
 
@@ -739,7 +739,7 @@ An `error` is the only failure channel, and the numeric `code` is what makes it 
 | `-32012` | `init` | **unknown image** — the session named a built image this server does not have. Apart from `UNSUPPORTED_IMAGE` because a client hearing this one can build the thing. |
 | `-32013` | `init` | **unsupported machine** — a GPU this server has no device for, or more vCPUs or memory than it will give. `init`'s own for the reason `UNSUPPORTED_MOUNT` is: what shapes a server can make is a fact about its build and its host, knowable as the frame is read. Apart from `BOOT_FAILED` because asking again will not make it true, and never used to narrow a session. |
 | `-32015` | `poll`, `kill` | **unknown job** — no job by that id: its end was already reported, a `stop` or an `init` ended it, or it was never spawned. Nothing to retry; the job is over. |
-| `-32016` | `spawn` | **too many jobs** — the server already holds as many as it will. Apart from `BOOT_FAILED` because the fix is the client's: poll a job to its end, or kill it, and spawn again. |
+| `-32016` | `spawn` | **too many jobs** — the server already holds as many as it will. Apart from `BOOT_FAILED` because the fix is the client's: poll a job to its end, killing it first if it should not finish, and spawn again. |
 | `-32600` | any | invalid request. |
 | `-32601` | any | method not found |
 | `-32602` | any | invalid params — an empty argv `cmd`, a `kill` with no such signal, a `poll` with a `max_bytes` of `0`, a mount that is not one, two mounts asking for the same path, a port on a session with `network: false`, a port of `0`, or a host port already taken on the server's machine. Apart from `UNSUPPORTED_MOUNT` because it says something different: the frame is wrong, rather than well formed and asking for a kind this build has not got. |
