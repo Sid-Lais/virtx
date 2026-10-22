@@ -9,6 +9,7 @@ images ahead of any session.
 Names and behaviour are virtx's own; see the Rust crate's documentation for details.
 """
 
+import sys
 from enum import IntEnum
 
 from . import _virtx
@@ -61,3 +62,12 @@ if hasattr(_virtx, "HostMount"):
     from ._virtx import HostMount, mount_support
 
     __all__ += ["HostMount", "mount_support"]
+
+# Present only when the extension was built with the `cli` feature, which is the default.
+if hasattr(_virtx, "cli_main"):
+
+    def main(args: list[str] | None = None) -> None:
+        """The ``virtx`` command line: what the console script runs, on ``sys.argv[1:]``."""
+        sys.exit(_virtx.cli_main(sys.argv[1:] if args is None else list(args)))
+
+    __all__.append("main")

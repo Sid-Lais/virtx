@@ -29,6 +29,11 @@ def until(cond, secs):
 async def main():
     check(hasattr(virtx, "ConsoleClient"), f"the package loads from {os.path.dirname(virtx.__file__)}")
 
+    # The console script pip installed beside the interpreter, as `uvx virtx` runs it.
+    cli = os.path.join(os.path.dirname(sys.executable), "virtx" + (".exe" if sys.platform == "win32" else ""))
+    help_ = subprocess.run([cli, "--help"], capture_output=True, text=True)
+    check(help_.returncode == 0 and "Commands:" in help_.stdout, "the virtx command runs from the environment's bin")
+
     try:
         virtx.mount_support()
         fuse = True

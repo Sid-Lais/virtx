@@ -61,6 +61,18 @@ Every error carries a `code`, the way Node's own carry `ENOENT`:
 | `INVALID_ARG` | a spent builder, a mounted `Directory`, a negative offset |
 | `NotFound`, `InvalidInput`, … | a filesystem error, by its `io::ErrorKind` |
 
+## Command line
+
+The package has a `bin`, which `npm install` links into `node_modules/.bin`:
+
+```sh
+npx @brekkylab/virtx --help     # every command; `virtx <COMMAND> --help` for its options
+npx @brekkylab/virtx images
+npm install @brekkylab/virtx && npx virtx --help    # or installed, in node_modules/.bin
+```
+
+It is the crate's command line, documented in the top-level README under CLI.
+
 ## Building
 
 The `mount` feature is on by default and needs the host's FUSE provider, as the crate

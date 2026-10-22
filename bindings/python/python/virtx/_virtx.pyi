@@ -165,3 +165,7 @@ async def ensure_virtx() -> str:
     that installed only this package lacks, so such a host calls this first. An existing
     server, fetched or installed by hand, is left alone.
     """
+
+def cli_main(args: list[str]) -> int:
+    """Run the ``virtx`` command line on ``args`` (without the program name); its exit code."""
+    ...

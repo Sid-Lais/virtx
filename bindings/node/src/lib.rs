@@ -5,7 +5,8 @@
 //! built by a builder and awaited, [`fs`] assembles a [`Directory`](virtx::fs::Directory) for
 //! a host mount, [`image`] covers a [`Recipe`](virtx::image::Recipe) (a base plus steps) and
 //! the [`ImageClient`](virtx::image::ImageClient) that builds it ahead of a session, [`error`]
-//! maps failures to JavaScript errors, and `ensure` fetches the console server.
+//! maps failures to JavaScript errors, `ensure` fetches the console server, and `cli` is the
+//! `virtx` command line behind the package's `bin`.
 //!
 //! Every call that waits returns a `Promise` settled on napi's tokio runtime, since a stdio
 //! client spawns and reads its server, which needs a reactor. `ConsoleClient` and `ImageClient`
@@ -20,6 +21,8 @@
 // does not, so there it looks unused.
 #![cfg_attr(test, allow(dead_code))]
 
+#[cfg(feature = "cli")]
+mod cli;
 mod console;
 #[cfg(feature = "ensure")]
 mod ensure;

@@ -186,3 +186,13 @@ async def test_relay_answers_through_its_callback():
 
     await console.close()
     assert await relay(console, b"") == (None, "this console has been closed")
+
+
+def test_cli_main_answers_with_an_exit_code(capfd):
+    from virtx import _virtx
+
+    assert _virtx.cli_main(["--help"]) == 0
+    assert "Commands:" in capfd.readouterr().out
+
+    assert _virtx.cli_main(["nope"]) == 2
+    assert "unrecognized subcommand" in capfd.readouterr().err

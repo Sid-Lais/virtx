@@ -20,9 +20,11 @@ napi-derive = "3"
 tokio = { version = "1", features = ["sync"] }
 
 [features]
-default = ["mount", "ensure"]
+default = ["mount", "ensure", "cli"]
 mount = ["virtx/mount"]
 ensure = ["virtx/ensure"]
+# `cliMain`, what `bin/virtx.js` runs.
+cli = ["virtx/cli"]
 s3 = ["virtx/s3"]
 gdrive = ["virtx/gdrive"]
 notion = ["virtx/notion"]

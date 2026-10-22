@@ -35,6 +35,16 @@ const installed = fs.readdirSync(path.join(process.cwd(), 'node_modules', '@brek
 console.log(`  installed: ${installed.join(' ')}`)
 check(installed.length === 2, 'exactly one platform package was installed beside the root')
 
+// The `bin` npm linked, as `npx @brekkylab/virtx` runs it.
+const cli = path.join(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'virtx.cmd' : 'virtx')
+let help = ''
+try {
+  help = execFileSync(cli, ['--help'], { encoding: 'utf8', shell: process.platform === 'win32' })
+} catch (e) {
+  console.log(`  virtx --help: ${e.message}`)
+}
+check(help.includes('Commands:'), 'the virtx command runs from node_modules/.bin')
+
 let fuse = true
 try {
   virtx.mountSupport()

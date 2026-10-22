@@ -5,7 +5,8 @@
 //! built by a builder and awaited, [`fs`] assembles a [`Directory`](virtx::fs::Directory) for
 //! a host mount, [`image`] covers a [`Recipe`](virtx::image::Recipe) (a base plus steps) and
 //! the [`ImageClient`](virtx::image::ImageClient) that builds it ahead of a session, [`error`]
-//! maps failures to exceptions, and `ensure` fetches the console server.
+//! maps failures to exceptions, `ensure` fetches the console server, and `cli` is the `virtx`
+//! command line behind the package's console script.
 //!
 //! Every call that waits is an awaitable run on the tokio runtime `pyo3-async-runtimes` keeps,
 //! since a stdio client spawns and reads its server, which needs a reactor asyncio lacks.
@@ -18,6 +19,8 @@
 
 use pyo3::prelude::*;
 
+#[cfg(feature = "cli")]
+mod cli;
 mod console;
 #[cfg(feature = "ensure")]
 mod ensure;
@@ -34,5 +37,7 @@ fn _virtx(m: &Bound<'_, PyModule>) -> PyResult<()> {
     console::register(m)?;
     #[cfg(feature = "ensure")]
     ensure::register(m)?;
+    #[cfg(feature = "cli")]
+    cli::register(m)?;
     Ok(())
 }

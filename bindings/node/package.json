@@ -11,9 +11,13 @@
   "homepage": "https://github.com/brekkylab/virtx/tree/main/bindings/node#readme",
   "main": "index.js",
   "types": "index.d.ts",
+  "bin": {
+    "virtx": "bin/virtx.js"
+  },
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "bin/virtx.js"
   ],
   "napi": {
     "binaryName": "virtx",

@@ -149,3 +149,8 @@ test('_relay answers a frame on the console it relays to', { skip: !SERVER && 's
   await console_.close()
   await assert.rejects(console_._relay(Buffer.alloc(0)), { message: /closed/ })
 })
+
+test('cliMain answers with an exit code', async () => {
+  assert.equal(await virtx.cliMain(['--help']), 0)
+  assert.equal(await virtx.cliMain(['nope']), 2)
+})

@@ -46,6 +46,18 @@ A `ConsoleClient` from this package can be handed to an [ailoy](https://github.c
 agent as is (`AgentBuilder(...).console(console)`): the agent shares its session, taking turns
 with your own calls one at a time, and `close()` ends the session for both.
 
+## Command line
+
+The package installs the `virtx` command beside the module:
+
+```sh
+uvx virtx --help        # every command; `virtx <COMMAND> --help` for its options
+uvx virtx images
+pip install virtx && virtx --help    # or installed, on the environment's PATH
+```
+
+It is the crate's command line, documented in the top-level README under CLI.
+
 ## Building
 
 The extension is built with [maturin](https://www.maturin.rs). The `mount` feature is on by

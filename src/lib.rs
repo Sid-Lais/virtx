@@ -55,6 +55,8 @@
 //! * [`protocol`]: the wire between a console client and a console server. The server is a
 //!   prebuilt binary, `virtx-uvm`, that `ensure_virtx` fetches into the cache's `bin`.
 //! * [`image`]: the images a session runs on, declared or built ahead of time.
+//! * [`cli`]: the `virtx` command line over [`image`], which the binary and the bindings'
+//!   entry points run.
 //!
 //! [`fs`] and [`console`] meet only at [`Mount`](fs::Mount): a console takes trees already
 //! mounted and never builds one or touches a binding, and [`fs`] does not know a console
@@ -69,6 +71,8 @@
 //! `module_inception` is allowed.
 #![allow(clippy::module_inception)]
 
+#[cfg(feature = "cli")]
+pub mod cli;
 pub mod console;
 #[cfg(feature = "ensure")]
 mod ensure;

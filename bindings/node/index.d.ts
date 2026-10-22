@@ -158,6 +158,12 @@ export interface BuildImageResult {
 }
 
 /**
+ * Run the `virtx` command line on `args` (without the program name); settles with its exit
+ * code. Output goes to this process's stdout and stderr.
+ */
+export declare function cliMain(args: Array<string>): Promise<number>
+
+/**
  * Fetch the console server into virtx's cache if missing, and settle with its directory.
  *
  * Console builders and `ImageClient` start `virtx-uvm` from that cache, which a host that

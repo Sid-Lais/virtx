@@ -376,12 +376,15 @@ Rebuilding under the same ref moves it to the new build, while `ImageSource::dig
 
 ### CLI
 
-The same from a shell, with `docker`'s spelling:
+The same from a shell, with `docker`'s spelling. The `virtx` command comes with every package:
 
 ```bash
-cargo install virtx
-virtx --help                                       # every command; `virtx <COMMAND> --help` for its options
+uvx virtx --help               # the Python package; or pip install virtx && virtx --help
+npx @brekkylab/virtx --help    # the Node package; or npm install @brekkylab/virtx && npx virtx --help
+cargo install virtx && virtx --help    # the crate
 ```
+
+`virtx <COMMAND> --help` says what each command takes.
 
 ```bash
 virtx image build -t jq:latest .                   # ./Dockerfile, stored under jq:latest

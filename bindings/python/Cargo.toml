@@ -31,9 +31,11 @@ tokio = { version = "1", features = ["sync"] }
 pyo3-build-config = "0.29"
 
 [features]
-default = ["mount", "ensure"]
+default = ["mount", "ensure", "cli"]
 mount = ["virtx/mount"]
 ensure = ["virtx/ensure"]
+# `cli_main`, what the `virtx` console script runs.
+cli = ["virtx/cli"]
 s3 = ["virtx/s3"]
 gdrive = ["virtx/gdrive"]
 notion = ["virtx/notion"]

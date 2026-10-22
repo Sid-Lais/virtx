@@ -19,6 +19,10 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
 ]
 
+[project.scripts]
+# `virtx` on PATH after `pip install virtx`, and what `uvx virtx` runs.
+virtx = "virtx:main"
+
 [project.urls]
 Repository = "https://github.com/brekkylab/virtx"
 Documentation = "https://github.com/brekkylab/virtx/tree/main/bindings/python#readme"
