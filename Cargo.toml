@@ -27,6 +27,15 @@ include = [
 [workspace]
 members = ["bindings/node", "bindings/python"]
 
+# The CLI, `src/bin/virtx.rs`: the one target that takes `clap`, and the one `cli` gates.
+# `doc = false`: a bin and a lib of the same name write to the same `doc/virtx/`, and the
+# lib's is the one to keep.
+[[bin]]
+name = "virtx"
+path = "src/bin/virtx.rs"
+required-features = ["cli"]
+doc = false
+
 [build-dependencies]
 # Compile `contrib/fuse_t/shim.c` for `mount` on macOS, and read where FUSE-T keeps its
 # library if installed (preferred, not needed).
@@ -65,6 +74,8 @@ uuid = { version = "1", optional = true }
 flate2 = { version = "1", optional = true }
 tar = { version = "0.4", optional = true }
 chrono = { version = "0.4", optional = true }
+# Argument parsing for the CLI, and nothing else uses it.
+clap = { version = "4", features = ["derive"], optional = true }
 serde = { version = "1", features = ["derive"] }
 # Notion answers in JSON and `page.json` is rendered back to it, so the backend
 # holds pages as `Value` rather than a mirror of a schema it does not own.
@@ -155,7 +166,7 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 #
 # Editors build the default set, so other features' code is inert until enabled
 # (rust-analyzer: `"cargo.features": "all"`).
-default = ["mount", "ensure"]
+default = ["mount", "ensure", "cli"]
 # Mount a virtx filesystem on the host, through the one binding this OS has:
 #
 # | Target | Binding | Needs |
@@ -209,6 +220,13 @@ mount = [
 # out: it takes this crate for the protocol, and its static musl guest's TLS stack would
 # need a C cross-compiler.
 ensure = ["dep:reqwest", "dep:flate2", "dep:tar", "tokio/net"]
+# The `virtx` binary: `image build`, `image ls`, `image inspect`, `image rm` and `image pull`
+# from a shell, on the server `ensure` fetches. `serde_json` is what `inspect` prints.
+#
+# On by default, though a library consumer has no use for the binary, so that `cargo install
+# virtx` installs it and a bare `cargo test` covers it. What a consumer pays is clap's
+# thirteen small crates at compile time; nothing of it links into their code.
+cli = ["dep:clap", "dep:serde_json", "ensure"]
 s3 = ["dep:object_store", "tokio/net", "tokio/rt-multi-thread"]
 # Google Drive as a read-only backend: the folder tree as directories, and the
 # Docs-editors types served as their own APIs' JSON rather than as an export.

@@ -374,6 +374,29 @@ async fn main() -> anyhow::Result<()> {
 Rebuilding under the same ref moves it to the new build, while `ImageSource::digest(&built.digest)` stays on this one.  
 `images.list()` shows what's built, and `images.remove(...)` deletes an image by its ref or digest.
 
+### CLI
+
+The same from a shell, with `docker`'s spelling:
+
+```bash
+cargo install virtx
+virtx --help                                       # every command; `virtx <COMMAND> --help` for its options
+```
+
+```bash
+virtx image build -t jq:latest .                   # ./Dockerfile, stored under jq:latest
+virtx image build -t jq:latest -f ci/Dockerfile .  # a Dockerfile elsewhere
+virtx image build -t jq:latest - < Dockerfile      # a Dockerfile from stdin
+virtx image pull alpine:3.20                       # a build with no steps, stored under the same name
+virtx image ls                                     # every build, one line per ref, with its image ID; --digests, -q as docker
+virtx image inspect jq:latest                      # the build's digest and refs, as JSON
+virtx image rm jq:latest 3d751709f25d              # by ref, image ID or digest; a build with several refs asks first, -f does not
+```
+
+As in `docker`, the same commands are also `virtx build`, `virtx pull`, `virtx images`, `virtx inspect` and `virtx rmi`.
+
+`build` prints the ref and digest the build is stored under. An image ID is the first 12 hex digits of the digest, as `images` shows it; any prefix that begins exactly one digest names that image. A Dockerfile is one stage of `FROM`, `RUN`, `ENV` and `WORKDIR`; a `COPY` is refused, as a build sends no context to copy from. The server is the one `ensure_virtx` fetches, so the first command fetches it.
+
 ## Cache
 
 virtx keeps all persistent state in a single cache directory that you can safely delete at any time:
