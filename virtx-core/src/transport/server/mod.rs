@@ -1,6 +1,7 @@
 //! The server: a [`Dispatcher`] of methods, answered by [`Server`] for whatever HTTP server
-//! mounts it at `/rpc`, or over stdio by [`serve_stdio`]. One HTTP request is answered with one
-//! message, or with an event stream of the request's notifications and then its response.
+//! mounts it at `/rpc` -- over a socket, or over stdio by [`serve_stdio`]. One HTTP request is
+//! answered with one message, or with an event stream of the request's notifications and then
+//! its response.
 
 mod dispatch;
 mod stdio;

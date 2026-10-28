@@ -123,7 +123,12 @@ pub fn methods() -> Methods {
 pub fn piped(methods: Methods) -> TransportClient {
     let (client, server) = tokio::io::duplex(64 * 1024);
     let (input, output) = tokio::io::split(server);
-    tokio::spawn(serve_stdio(Dispatcher::new(methods), input, output));
+    let server = Server::new(Dispatcher::new(methods));
+    let handle = move |request| {
+        let server = server.clone();
+        async move { server.handle(request).await }
+    };
+    tokio::spawn(serve_stdio(handle, input, output));
     TransportClient::over(client)
 }
 
@@ -394,7 +399,12 @@ async fn a_server_that_exits_fails_every_call() {
 async fn serve_returns_once_its_client_is_gone() {
     let (client, server) = tokio::io::duplex(64 * 1024);
     let (input, output) = tokio::io::split(server);
-    let served = tokio::spawn(serve_stdio(Dispatcher::new(methods()), input, output));
+    let server = Server::new(Dispatcher::new(methods()));
+    let handle = move |request| {
+        let server = server.clone();
+        async move { server.handle(request).await }
+    };
+    let served = tokio::spawn(serve_stdio(handle, input, output));
     let client = TransportClient::over(client);
     let answer: String = client.request("echo", ["hi"]).await.unwrap();
     assert_eq!(answer, "hi");
