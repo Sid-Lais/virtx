@@ -6,5 +6,5 @@
 //! the manifest a reference points at. Every request is sent over the client's own connection,
 //! so it goes wherever `/rpc` does, over either transport.
 
-mod oci;
+mod manifest;
 mod reference;

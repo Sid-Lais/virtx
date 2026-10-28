@@ -1,8 +1,8 @@
 mod content;
 mod image_name;
-mod recipe;
 #[cfg(feature = "ffi")]
-mod registry;
+mod oci;
+mod recipe;
 mod registry_auth;
 mod store;
 
