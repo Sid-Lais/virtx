@@ -14,6 +14,8 @@ mod server;
 pub(crate) mod tests;
 
 #[cfg(feature = "client")]
+pub(crate) use client::{Body, full};
+#[cfg(feature = "client")]
 pub use client::{Error, PortForwarder, TransportClient};
 pub use message::ErrorObject;
 #[cfg(feature = "server")]

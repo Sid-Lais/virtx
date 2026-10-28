@@ -16,6 +16,8 @@ mod client;
 mod ffi;
 mod image;
 mod method;
+#[cfg(feature = "ffi")]
+mod registry;
 mod sandbox;
 mod snapshot;
 #[cfg(any(feature = "client", feature = "server"))]

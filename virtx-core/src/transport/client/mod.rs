@@ -10,7 +10,7 @@ use std::{fmt, io, pin::pin};
 use bytes::Bytes;
 use futures_util::{Stream, StreamExt, TryStreamExt};
 use http::{StatusCode, header};
-use http_body_util::{BodyExt, combinators::BoxBody};
+use http_body_util::{BodyExt, Full, combinators::BoxBody};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use sse_stream::SseStream;
@@ -32,6 +32,10 @@ pub enum Error {
     Transport(String),
     /// The params did not encode, or the result did not read as the type asked for.
     Json(String),
+    /// The server's image registry answered with an error, or with what is not an image.
+    Registry(String),
+    /// A file on this machine could not be read or written, or is not what it should be.
+    File(String),
 }
 
 impl fmt::Display for Error {
@@ -40,14 +44,21 @@ impl fmt::Display for Error {
             Error::Call(error) => write!(f, "{error}"),
             Error::Transport(reason) => f.write_str(reason),
             Error::Json(reason) => f.write_str(reason),
+            Error::Registry(reason) => f.write_str(reason),
+            Error::File(reason) => f.write_str(reason),
         }
     }
 }
 
 impl std::error::Error for Error {}
 
-/// A response's body, as either transport reads it.
-type Body = BoxBody<Bytes, io::Error>;
+/// A request's or a response's body, as either transport carries it.
+pub(crate) type Body = BoxBody<Bytes, io::Error>;
+
+/// `bytes`, as a whole [`Body`].
+pub(crate) fn full(bytes: impl Into<Bytes>) -> Body {
+    Full::new(bytes.into()).map_err(|e| match e {}).boxed()
+}
 
 /// How a client reaches the server's endpoints.
 enum Connection {
@@ -58,7 +69,7 @@ enum Connection {
 impl Connection {
     /// Send `request`, whose URI is a path relative to the server's base, such as `rpc`. An
     /// `Err` says why no response came.
-    async fn send(&self, request: http::Request<Bytes>) -> Result<http::Response<Body>, String> {
+    async fn send(&self, request: http::Request<Body>) -> Result<http::Response<Body>, String> {
         match self {
             Connection::Tcp(tcp) => tcp.send(request).await,
             Connection::Stdio(stdio) => stdio.send(request).await,
@@ -103,6 +114,18 @@ impl TransportClient {
         Self::new(Connection::Stdio(Stdio::over(io, None)))
     }
 
+    /// Send `request` to whichever endpoint its URI, a path relative to the server's base such
+    /// as `images/v2/`, names. An `Err` says why no response came.
+    pub(crate) async fn send(
+        &self,
+        request: http::Request<Body>,
+    ) -> Result<http::Response<Body>, Error> {
+        self.connection
+            .send(request)
+            .await
+            .map_err(Error::Transport)
+    }
+
     /// Call `method` with `params`, a value that serializes to a map or an array, and
     /// wait for its result. Its progress is not read.
     pub async fn request<R: DeserializeOwned + Send>(
@@ -145,7 +168,7 @@ impl TransportClient {
             let request = http::Request::post("rpc")
                 .header(header::CONTENT_TYPE, JSON)
                 .header(header::ACCEPT, format!("{JSON}, {EVENT_STREAM}"))
-                .body(Bytes::from(message))
+                .body(full(message))
                 .expect("a valid request");
             let response = self.connection.send(request).await.map_err(Error::Transport)?;
             let status = response.status();
