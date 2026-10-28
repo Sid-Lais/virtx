@@ -224,6 +224,7 @@ A cancelled request MAY therefore still have taken effect: a client that needs t
 | `image.pull` | `reference`, `auth?` | `{digest}` | Stream |
 | `image.push` | `reference`, `auth?` | `{digest}` | Stream |
 | `image.build` | `recipe`, `reference` | `{digest}` | Stream |
+| `image.prune` | | `{images, reclaimed}` | |
 
 `image.pull` and `image.push` copy an image between the server's images and another registry, the one `reference` names, as `docker pull` and `docker push` do: `ghcr.io/owner/name:tag` is `owner/name:tag` at `ghcr.io`, and a reference that names no registry, such as `alpine:3.20`, is at Docker Hub.
 Each keeps the reference as it is on the server's side, so what `image.pull` pulls is tagged `reference` here, and `image.push` pushes the image `reference` tags here.
@@ -235,6 +236,10 @@ Without it the server goes to the registry anonymously.
 The server uses `auth` for that request alone: it MUST NOT keep it, write it to a log or a notification, or send it to any other host.
 
 `image.build` builds an image from `recipe` into the server's [images](#images) and tags it `reference`, as a push of it would.
+
+`image.prune` deletes each image no reference points at and no sandbox uses, and what only such images held, such as their layers.
+`images` is the digest of each image it deleted, and `reclaimed` how many bytes that freed.
+It MAY leave what is too new to tell from what a pull, push or build still in flight will point a reference at.
 
 Everything else about images is done through `/images/v2/`.
 

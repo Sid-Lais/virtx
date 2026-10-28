@@ -209,6 +209,15 @@ struct VirtxStream *virtx_client_upload_image(struct VirtxClient *client,
                                               const uint8_t *args,
                                               size_t args_len);
 
+// `image.prune`: deletes each image no tag points at and no sandbox uses, and what only
+// such images held. Answers with `{"images": ["algorithm:hex", ...], "reclaimed": n}`, the
+// digests deleted and the bytes freed.
+//
+// # Safety
+//
+// `client` is as in `virtx_client_list_snapshot`.
+struct VirtxFuture *virtx_client_prune_image(struct VirtxClient *client);
+
 // `snapshot.list`: answers with the snapshots, as
 // `[{"name": "...", "size": n, "in_use": false}, ...]`.
 //

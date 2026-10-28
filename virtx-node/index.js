@@ -68,6 +68,7 @@ const SIGNATURES = {
   virtx_client_remove_image: WITH_ARGS,
   virtx_client_download_image: WITH_ARGS,
   virtx_client_upload_image: WITH_ARGS,
+  virtx_client_prune_image: PLAIN,
   virtx_client_list_snapshot: PLAIN,
   virtx_client_create_snapshot: WITH_ARGS,
   virtx_client_remove_snapshot: WITH_ARGS,
@@ -412,6 +413,10 @@ class Client {
 
   uploadImage(path, reference) {
     return this._events('virtx_client_upload_image', { path, reference })
+  }
+
+  pruneImage() {
+    return this._call('virtx_client_prune_image')
   }
 
   listSnapshot() {

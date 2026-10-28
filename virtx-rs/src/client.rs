@@ -9,13 +9,13 @@ use std::{
 use serde::{Serialize, de::DeserializeOwned};
 use virtx_core::{
     ImageBuildArgs, ImageBuildOutput, ImageDownloadArgs, ImageDownloadOutput, ImageListOutputItem,
-    ImagePullArgs, ImagePullOutput, ImagePushArgs, ImagePushOutput, ImageRemoveArgs, ImageTagArgs,
-    ImageUntagArgs, ImageUploadArgs, ImageUploadOutput, MountSource, Recipe, RegistryAuth,
-    SandboxCloseArgs, SandboxExecArgs, SandboxExecOutput, SandboxInitArgs, SandboxInitOutput,
-    SandboxListOutputItem, SnapshotCreateArgs, SnapshotCreateOutput, SnapshotListOutputItem,
-    SnapshotRemoveArgs, VolumeCreateArgs, VolumeCreateOutput, VolumeListOutputItem,
-    VolumeMountCreateArgs, VolumeMountListArgs, VolumeMountListOutputItem, VolumeMountRemoveArgs,
-    VolumeRemoveArgs,
+    ImagePruneOutput, ImagePullArgs, ImagePullOutput, ImagePushArgs, ImagePushOutput,
+    ImageRemoveArgs, ImageTagArgs, ImageUntagArgs, ImageUploadArgs, ImageUploadOutput, MountSource,
+    Recipe, RegistryAuth, SandboxCloseArgs, SandboxExecArgs, SandboxExecOutput, SandboxInitArgs,
+    SandboxInitOutput, SandboxListOutputItem, SnapshotCreateArgs, SnapshotCreateOutput,
+    SnapshotListOutputItem, SnapshotRemoveArgs, VolumeCreateArgs, VolumeCreateOutput,
+    VolumeListOutputItem, VolumeMountCreateArgs, VolumeMountListArgs, VolumeMountListOutputItem,
+    VolumeMountRemoveArgs, VolumeRemoveArgs,
 };
 
 use crate::{
@@ -217,6 +217,13 @@ impl Client {
             self.api,
             self.start(self.api.virtx_client_upload_image, args),
         )
+    }
+
+    /// Delete each image no tag points at and no sandbox uses, and what only such images held.
+    pub fn prune_image(&self) -> Call<ImagePruneOutput> {
+        Call::new(self.api, unsafe {
+            (self.api.virtx_client_prune_image)(self.raw)
+        })
     }
 
     /// Every snapshot the server holds.

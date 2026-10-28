@@ -18,6 +18,7 @@ from .image import (
     ImageDownloadOutput,
     ImageListOutputItem,
     ImageName,
+    ImagePruneOutput,
     ImagePullOutput,
     ImagePushOutput,
     ImageUploadOutput,
@@ -273,6 +274,11 @@ class Client:
             _args(path=os.fspath(path), reference=reference),
             ImageUploadOutput.from_dict,
         )
+
+    async def prune_image(self) -> ImagePruneOutput:
+        """Delete each image no tag points at and no sandbox uses, and what only such images
+        held."""
+        return ImagePruneOutput.from_dict(await self._call("virtx_client_prune_image"))
 
     async def list_snapshot(self) -> list[dict[str, Any]]:
         """Every snapshot the server holds, as ``{"name", "size", "in_use"}``, ``in_use`` whether

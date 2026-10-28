@@ -180,3 +180,18 @@ class ImageUploadOutput:
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> ImageUploadOutput:
         return cls(value["digest"])
+
+
+@dataclass(frozen=True)
+class ImagePruneOutput:
+    """What ``prune_image`` deleted."""
+
+    images: list[str]
+    """The digest of each image deleted, as ``algorithm:hex``."""
+
+    reclaimed: int
+    """How many bytes the server freed."""
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ImagePruneOutput:
+        return cls(list(value["images"]), value["reclaimed"])

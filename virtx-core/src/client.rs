@@ -10,8 +10,8 @@ use crate::{
     Error,
     image::{
         ImageBuild, ImageBuildArgs, ImageBuildOutput, ImageDownloadOutput, ImageListOutputItem,
-        ImagePull, ImagePullArgs, ImagePullOutput, ImagePush, ImagePushArgs, ImagePushOutput,
-        ImageUploadOutput, Recipe, RegistryAuth, oci,
+        ImagePrune, ImagePruneArgs, ImagePruneOutput, ImagePull, ImagePullArgs, ImagePullOutput,
+        ImagePush, ImagePushArgs, ImagePushOutput, ImageUploadOutput, Recipe, RegistryAuth, oci,
     },
     method::{Event, Request},
     sandbox::{
@@ -156,6 +156,13 @@ impl Client {
     ) -> impl Stream<Item = Result<Event<ImageUploadOutput, String>, Error>> + Unpin + Send + '_
     {
         Box::pin(oci::upload(&self.inner, path.into(), reference.into()))
+    }
+
+    /// Delete each image no tag points at and no sandbox uses, and what only such images held.
+    pub async fn prune_image(&self) -> Result<ImagePruneOutput, Error> {
+        self.inner
+            .request(ImagePrune::NAME, ImagePruneArgs {})
+            .await
     }
 
     /// Every snapshot the server holds.
@@ -406,6 +413,14 @@ mod tests {
         assert!(matches!(pull.next().await, Some(Ok(Event::Progress(_)))));
         assert!(matches!(pull.next().await, Some(Err(Error::Call(_)))));
         assert!(pull.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_prune_answers_what_it_deleted() {
+        let client = Client { inner: connect() };
+        let pruned = client.prune_image().await.unwrap();
+        assert_eq!(pruned.images, ["sha256:0"]);
+        assert_eq!(pruned.reclaimed, 1024);
     }
 
     #[tokio::test]
@@ -786,6 +801,21 @@ pub(crate) mod ffi {
                 }
             }
         })
+    }
+
+    /// `image.prune`: deletes each image no tag points at and no sandbox uses, and what only
+    /// such images held. Answers with `{"images": ["algorithm:hex", ...], "reclaimed": n}`, the
+    /// digests deleted and the bytes freed.
+    ///
+    /// # Safety
+    ///
+    /// `client` is as in `virtx_client_list_snapshot`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_prune_image(
+        client: *mut VirtxClient,
+    ) -> *mut VirtxFuture {
+        unsafe { &(*client).0 }
+            .future(|client| async move { client.prune_image().await.map_err(|e| e.to_string()) })
     }
 
     /// `snapshot.list`: answers with the snapshots, as

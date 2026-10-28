@@ -116,3 +116,29 @@ pub struct ImagePushOutput {
     /// The digest of the manifest pushed, as `algorithm:hex`.
     pub digest: String,
 }
+
+/// `image.prune`: delete each image no reference points at and no sandbox uses, and what only
+/// such images held.
+pub struct ImagePrune;
+
+impl Request for ImagePrune {
+    const NAME: &'static str = "image.prune";
+    type Args = ImagePruneArgs;
+    type Output = ImagePruneOutput;
+}
+
+/// What `image.prune` takes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImagePruneArgs {}
+
+/// What `image.prune` answers.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImagePruneOutput {
+    /// The digest of each image deleted, as `algorithm:hex`.
+    pub images: Vec<String>,
+
+    /// How many bytes the server freed.
+    pub reclaimed: u64,
+}

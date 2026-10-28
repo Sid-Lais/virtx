@@ -93,6 +93,13 @@ export interface ImageUploadOutput {
   digest: string
 }
 
+export interface ImagePruneOutput {
+  /** The digest of each image deleted, as `algorithm:hex`. */
+  images: string[]
+  /** How many bytes the server freed. */
+  reclaimed: number
+}
+
 export interface SnapshotListItem {
   name: string
   size: number
@@ -219,6 +226,8 @@ export class Client {
   downloadImage(reference: string, path: string): AsyncGenerator<Event<ImageDownloadOutput, string>>
   /** Upload the image in the OCI image layout archive at `path`, and point the tag `reference` (`name:tag`) at it: the archive's only image, or the one it names by that tag. Its events are a line of log a blob, then what it uploaded. */
   uploadImage(path: string, reference: string): AsyncGenerator<Event<ImageUploadOutput, string>>
+  /** Delete each image no tag points at and no sandbox uses, and what only such images held. */
+  pruneImage(): Promise<ImagePruneOutput>
   listSnapshot(): Promise<SnapshotListItem[]>
   createSnapshot(name?: string, diskGib?: number): Promise<{ name: string }>
   removeSnapshot(name: string): Promise<void>
