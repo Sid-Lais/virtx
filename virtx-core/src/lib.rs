@@ -12,20 +12,26 @@
 
 #[cfg(feature = "ffi")]
 mod client;
+#[cfg(feature = "client")]
+mod error;
 #[cfg(feature = "ffi")]
 mod ffi;
 mod image;
 mod method;
-#[cfg(feature = "ffi")]
-mod registry;
+#[cfg(any(feature = "client", feature = "server"))]
+mod rpc;
 mod sandbox;
 mod snapshot;
 #[cfg(any(feature = "client", feature = "server"))]
 mod transport;
 mod volume;
 
+#[cfg(feature = "client")]
+pub use error::Error;
 pub use image::*;
 pub use method::*;
+#[cfg(any(feature = "client", feature = "server"))]
+pub use rpc::*;
 pub use sandbox::*;
 pub use snapshot::*;
 #[cfg(any(feature = "client", feature = "server"))]

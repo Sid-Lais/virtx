@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use crate::{image::is_digest, transport::Error};
+use crate::{Error, image::is_digest};
 
 /// An image in one repository: `name:tag` or `name@algorithm:hex`.
 #[derive(Clone, Debug, PartialEq, Eq)]

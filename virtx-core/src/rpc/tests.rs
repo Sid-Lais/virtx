@@ -16,9 +16,7 @@ use serde_json::{Value, json};
 use sse_stream::SseStream;
 use tokio::{net::TcpListener, sync::mpsc, task::JoinSet};
 
-use super::{
-    CancelScope, Dispatcher, ErrorObject, Methods, Notifier, Server, TransportClient, serve_stdio,
-};
+use super::{CancelScope, Dispatcher, ErrorObject, Methods, Notifier, Server};
 use crate::{
     image::{
         ImageBuild, ImageBuildOutput, ImagePull, ImagePullOutput, ImagePush, ImagePushOutput,
@@ -26,6 +24,7 @@ use crate::{
     },
     method::{Event, Progress, Request, StreamingRequest},
     sandbox::{SandboxExec, SandboxExecOutput},
+    transport::{TransportClient, serve_stdio},
 };
 
 /// `echo`: answers the text it is given.

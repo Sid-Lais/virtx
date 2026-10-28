@@ -7,6 +7,7 @@ use futures_util::Stream;
 use tokio::process::Command;
 
 use crate::{
+    Error,
     image::{
         ImageBuild, ImageBuildArgs, ImageBuildOutput, ImagePull, ImagePullArgs, ImagePullOutput,
         ImagePush, ImagePushArgs, ImagePushOutput, Recipe, RegistryAuth,
@@ -21,7 +22,7 @@ use crate::{
         SnapshotCreate, SnapshotCreateArgs, SnapshotCreateOutput, SnapshotList, SnapshotListArgs,
         SnapshotListOutputItem, SnapshotRemove, SnapshotRemoveArgs, SnapshotRemoveOutput,
     },
-    transport::{Error, TransportClient},
+    transport::TransportClient,
     volume::{
         MountSource, VolumeCreate, VolumeCreateArgs, VolumeCreateOutput, VolumeList,
         VolumeListArgs, VolumeListOutputItem, VolumeMountCreate, VolumeMountCreateArgs,
@@ -284,7 +285,7 @@ mod tests {
     use futures_util::StreamExt;
 
     use super::*;
-    use crate::{method::Progress, transport::tests::connect};
+    use crate::{method::Progress, rpc::tests::connect};
 
     /// The first line of a log, as the test methods send it.
     fn line(line: &str) -> Progress<String> {

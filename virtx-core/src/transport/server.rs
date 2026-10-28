@@ -13,7 +13,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 /// request answered by `handle`, until the client closes it or `input` ends. What is in flight
 /// then is cancelled, not waited for.
 ///
-/// Every endpoint is `handle`'s, as a server over HTTP routes its own: [`Server`](super::Server)
+/// Every endpoint is `handle`'s, as a server over HTTP routes its own: [`Server`](crate::Server)
 /// answers `/rpc`.
 pub async fn serve_stdio<I, O, F, Fut, B>(handle: F, input: I, output: O) -> io::Result<()>
 where

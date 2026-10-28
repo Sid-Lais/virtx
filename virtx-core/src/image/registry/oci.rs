@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256, Sha512};
 
-use crate::{image::is_digest, transport::Error};
+use crate::{Error, image::is_digest};
 
 /// Every manifest type asked for: OCI's and Docker's, each an image or an index of images.
 pub(crate) const MANIFEST_TYPES: &str = "application/vnd.oci.image.index.v1+json, \
