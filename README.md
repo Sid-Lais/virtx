@@ -1,16 +1,29 @@
-# virtx
+<p align="center">
+  <picture>
+    <img alt="virtx" src="assets/virtx-logo.png" width="352" style="max-width: 50%;">
+  </picture>
+</p>
 
-<img src="https://cdn.simpleicons.org/rust/000000/ffffff" width="16"/> <a href="https://crates.io/crates/virtx"><img src="https://img.shields.io/crates/v/virtx?label=virtx&color=dea584" alt="crates.io"></a>
-<img src="https://cdn.simpleicons.org/python" width="16"/> <a href="https://pypi.org/project/virtx/"><img src="https://img.shields.io/pypi/v/virtx?color=blue&label=virtx" alt="PyPI"></a>
-<img src="https://cdn.simpleicons.org/nodedotjs" width="16"/> <a href="https://www.npmjs.com/package/@brekkylab/virtx"><img src="https://img.shields.io/npm/v/@brekkylab/virtx?label=@brekkylab/virtx&color=339933" alt="npm node"></a>
+<h3 align="center">Disposable Linux VMs for your code and your AI agents.</h3>
 
-virtx lets you run tasks in disposable Linux VMs from your own code.
+<p align="center">
+  <img src="https://cdn.simpleicons.org/rust/000000/ffffff" width="16"/> <a href="https://crates.io/crates/virtx"><img src="https://img.shields.io/crates/v/virtx?label=virtx&color=dea584" alt="crates.io"></a>
+  <img src="https://cdn.simpleicons.org/python" width="16"/> <a href="https://pypi.org/project/virtx/"><img src="https://img.shields.io/pypi/v/virtx?color=blue&label=virtx" alt="PyPI"></a>
+  <img src="https://cdn.simpleicons.org/nodedotjs" width="16"/> <a href="https://www.npmjs.com/package/@brekkylab/virtx"><img src="https://img.shields.io/npm/v/@brekkylab/virtx?label=@brekkylab/virtx&color=339933" alt="npm node"></a>
+</p>
 
-It's useful for jobs with heavy dependencies that you'd rather not install on your own machine.
-Whatever they install or change is gone when the VM shuts down.
+<p align="center">
+  <a href="https://discord.gg/27rx3EJy3P"><img src="https://img.shields.io/badge/Discord-7289DA?logo=discord&logoColor=white" alt="Discord"></a>
+  <a href="https://x.com/brekkylab"><img src="https://img.shields.io/badge/X-000000?logo=x&logoColor=white" alt="X"></a>
+</p>
 
-No Docker or heavy daemon required.
-Create, use, and dispose of VMs directly from your code.
+<br>
+
+virtx starts a Linux VM from your own code, runs what you ask inside it, and throws it away when you're done. The VM only sees the folders you mount, so a script, a build or an AI agent can install and change whatever it likes without touching your machine.
+
+There is no Docker and no VM daemon to set up. Your program starts the VM, uses it and closes it, on Linux, macOS and Windows, and the VM can use your GPU through Vulkan when a task needs one.
+
+virtx is also the VM layer under [Ailoy](https://github.com/brekkylab/ailoy), our open-source agent SDK. In Ailoy, every agent gets its own virtx VM, which is both the sandbox its commands run in and the machine the agent lives on. You can use virtx on its own too, with any agent or none at all.
 
 ## Quickstart
 
@@ -96,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-Output:
+It prints:
 ```text
 step 1/1: cd '/' && apk add --no-cache jq
 (1/2) Installing oniguruma (6.9.10-r0)
@@ -239,7 +252,7 @@ asyncio.run(main())
 
 `notes/today.md` lives only in memory, and `project` is the host's current directory.
 
-Moreover, external stores like S3, Google Drive and Notion, and commands inside the VM can read them as ordinary files.
+Remote stores such as S3, Google Drive and Notion can be mounted the same way, so commands in the VM read them as ordinary files.
 
 ```rust
 use virtx::{
@@ -314,7 +327,7 @@ fn main() {
 
 If you don't mount on the host, build with `default-features = false` and skip all of this.
 
-For macOS
+On macOS:
 
 ```sh
 brew install --cask fuse-t
@@ -322,7 +335,7 @@ brew install --cask fuse-t
 
 virtx mounts through FUSE-T 1.x from 1.2.9 on, and is checked against 1.2.9. An older release is refused before a mount: it resets the process's `SIGCHLD` handler on every mount, and unmounting the first of two mounts waits for the second. A FUSE-T of another major version is refused too, with the release to install instead, rather than risk a crash on a layout that changed.
 
-And for windows
+On Windows:
 
 ```powershell
 winget install --id dokan-dev.Dokany
@@ -374,6 +387,27 @@ async fn main() -> anyhow::Result<()> {
 Rebuilding under the same ref moves it to the new build, while `ImageSource::digest(&built.digest)` stays on this one.  
 `images.list()` shows what's built, and `images.remove(...)` deletes an image by its ref or digest.
 
+## How it works
+
+`ConsoleClient` is the part you work with. `build()` boots a Linux VM from the image you named and gives you a console: run commands in it with `exec`, and read and write its files.
+
+The console talks to a small server, `virtx-uvm`, over stdio. Your program starts that server itself and it exits with your program, which is why there is nothing to install or keep running. `ensure_virtx()` downloads the server into the cache the first time and does nothing after that.
+
+What the VM sees is a filesystem you put together: host folders, files that live only in memory and remote stores, each mounted at a path you choose, read-write or read-only. Network access, CPUs, memory and disk are options on the same builder. The line virtx draws is the one between the VM and your machine; [SECURITY.md](SECURITY.md) says what that covers.
+
+## Requirements
+
+- Python 3.10 or later, Node 18 or later, or Rust.
+- Linux, macOS on Apple silicon, or Windows 11 or later as the host.
+- Mounting host folders needs FUSE support: nothing extra on Linux, [FUSE-T](https://www.fuse-t.org) on macOS, [Dokany](https://github.com/dokan-dev/dokany) on Windows. See [Filesystem](#filesystem).
+- On Windows, the VM runs on the Windows Hypervisor Platform, which is off by default. Turn it on from an administrator PowerShell, then restart with virtualization enabled in the firmware:
+
+```powershell
+Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform
+```
+
+- GPU access needs a Vulkan loader on the host and the guest's half of Vulkan in the image. See [GPU support](#gpu-support).
+
 ## Cache
 
 virtx keeps all persistent state in a single cache directory that you can safely delete at any time:
@@ -385,3 +419,13 @@ virtx keeps all persistent state in a single cache directory that you can safely
 | Windows | `%LOCALAPPDATA%\virtx` |
 
 Set `VIRTX_HOME` to put it somewhere else.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers setup, tests and how to open a PR. For a suspected vulnerability, please follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+
+Questions and show-and-tell are welcome on [Discord](https://discord.gg/27rx3EJy3P).
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
