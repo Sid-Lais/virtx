@@ -5,12 +5,12 @@
 //! follows is the same over every transport, so only those two name one. `include/virtx.h`
 //! declares these functions, and changes with them.
 //!
-//! The types every request takes and answers are always built; the wire's client end is the
-//! `client` feature, its server end the `server` feature, and the C ABI over a client the `ffi`
-//! feature, on by default with `client`. A crate that reaches the library through the C ABI
+//! The types every request takes and answers are always built; the wire's client end, and
+//! [`Client`] over it, is the `client` feature, its server end the `server` feature, and the C
+//! ABI over a client the `ffi` feature, on by default with `client`. A crate that reaches the library through the C ABI
 //! takes the types alone, with `default-features = false`; a server takes `server`.
 
-#[cfg(feature = "ffi")]
+#[cfg(feature = "client")]
 mod client;
 #[cfg(feature = "client")]
 mod error;
@@ -26,6 +26,8 @@ mod snapshot;
 mod transport;
 mod volume;
 
+#[cfg(feature = "client")]
+pub use client::Client;
 #[cfg(feature = "client")]
 pub use error::Error;
 pub use image::*;

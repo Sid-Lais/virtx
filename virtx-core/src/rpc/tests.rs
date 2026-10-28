@@ -139,7 +139,6 @@ pub fn piped(methods: Methods) -> TransportClient {
 }
 
 /// A client of [`methods`], served on this runtime over an in-memory pipe.
-#[cfg(feature = "ffi")]
 pub fn connect() -> TransportClient {
     piped(methods())
 }

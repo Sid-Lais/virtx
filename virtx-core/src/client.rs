@@ -1,5 +1,5 @@
-//! The typed client: each method of [`method`](crate::method) as a call, over a
-//! [`TransportClient`].
+//! The typed client: each method of [`method`](crate::method) as a call, and what is done to
+//! images through the server's registry at `/images/v2/`, over a [`TransportClient`].
 
 use std::{io, path::PathBuf};
 
@@ -459,6 +459,7 @@ mod tests {
     }
 }
 
+#[cfg(feature = "ffi")]
 pub(crate) mod ffi {
     //! [`Client`] behind the C ABI: opening one, sharing it by reference count, and its methods,
     //! each of which starts the request and hands C its [`VirtxFuture`] or [`VirtxStream`].

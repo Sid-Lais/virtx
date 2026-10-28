@@ -80,6 +80,8 @@ client = [
     "dep:async-stream",
     "dep:tokio",
     "dep:tokio-tungstenite",
+    "dep:tar",
+    "dep:sha2",
 ]
 server = [
     "dep:hyper",
@@ -96,7 +98,7 @@ server = [
     "dep:async-stream",
     "dep:tokio",
 ]
-ffi = ["client", "dep:tar", "dep:sha2"]
+ffi = ["client"]
 
 # Runs a child process of itself as the server, so libtest's output stays off its stdout.
 [[test]]
