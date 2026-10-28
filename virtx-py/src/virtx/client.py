@@ -12,7 +12,15 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from ._library import OK, Library, VirtxError, _Bytes, library
-from .image import ImageBuildOutput, ImageName, Recipe, image_name
+from .image import (
+    ImageBuildOutput,
+    ImageName,
+    ImagePullOutput,
+    ImagePushOutput,
+    Recipe,
+    RegistryAuth,
+    image_name,
+)
 from .volume import (
     MountSource,
     VolumeCreateOutput,
@@ -194,6 +202,29 @@ class Client:
             "virtx_client_build_image",
             _args(recipe=recipe, reference=reference),
             ImageBuildOutput.from_dict,
+        )
+
+    def pull_image(
+        self, reference: str, auth: RegistryAuth | None = None
+    ) -> AsyncIterator[Event[ImagePullOutput, str]]:
+        """Pull ``reference`` from its registry, and point it at what it pulls; without ``auth``
+        the server pulls anonymously. Its events are the pull's log, then what it pulled."""
+        return self._events(
+            "virtx_client_pull_image",
+            _args(reference=reference, auth=auth and auth.to_dict()),
+            ImagePullOutput.from_dict,
+        )
+
+    def push_image(
+        self, reference: str, auth: RegistryAuth | None = None
+    ) -> AsyncIterator[Event[ImagePushOutput, str]]:
+        """Push the image ``reference`` points at to the registry ``reference`` names; without
+        ``auth`` the server pushes anonymously. Its events are the push's log, then what it
+        pushed."""
+        return self._events(
+            "virtx_client_push_image",
+            _args(reference=reference, auth=auth and auth.to_dict()),
+            ImagePushOutput.from_dict,
         )
 
     async def list_snapshot(self) -> list[dict[str, Any]]:

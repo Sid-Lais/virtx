@@ -61,6 +61,21 @@ export interface ImageBuildOutput {
   digest: string
 }
 
+/** Credentials for a remote image registry. A `basic` password may be an access token the registry takes in its place. */
+export type RegistryAuth =
+  | { type: 'basic'; username: string; password: string }
+  | { type: 'bearer'; token: string }
+
+export interface ImagePullOutput {
+  /** The digest of the image's manifest, as `algorithm:hex`. */
+  digest: string
+}
+
+export interface ImagePushOutput {
+  /** The digest of the manifest pushed, as `algorithm:hex`. */
+  digest: string
+}
+
 export interface SnapshotListItem {
   name: string
   size: number
@@ -171,6 +186,10 @@ export class Client {
   [Symbol.asyncDispose](): Promise<void>
 
   buildImage(recipe: Recipe | ReturnType<Recipe['toJSON']>, reference: string): AsyncGenerator<Event<ImageBuildOutput, string>>
+  /** Pull `reference` from its registry, and point it at what it pulls; without `auth` the server pulls anonymously. */
+  pullImage(reference: string, auth?: RegistryAuth): AsyncGenerator<Event<ImagePullOutput, string>>
+  /** Push the image `reference` points at to the registry `reference` names; without `auth` the server pushes anonymously. */
+  pushImage(reference: string, auth?: RegistryAuth): AsyncGenerator<Event<ImagePushOutput, string>>
   listSnapshot(): Promise<SnapshotListItem[]>
   createSnapshot(name?: string, diskGib?: number): Promise<{ name: string }>
   removeSnapshot(name: string): Promise<void>

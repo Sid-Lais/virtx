@@ -101,6 +101,8 @@ _SIGNATURES: dict[str, tuple[list[Any], Any]] = {
     "virtx_client_retain": ([_HANDLE], None),
     "virtx_client_release": ([_HANDLE], None),
     "virtx_client_build_image": _WITH_ARGS,
+    "virtx_client_pull_image": _WITH_ARGS,
+    "virtx_client_push_image": _WITH_ARGS,
     "virtx_client_list_snapshot": _PLAIN,
     "virtx_client_create_snapshot": _WITH_ARGS,
     "virtx_client_remove_snapshot": _WITH_ARGS,

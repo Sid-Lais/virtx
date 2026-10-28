@@ -7,7 +7,8 @@ use std::{
 
 use serde::{Serialize, de::DeserializeOwned};
 use virtx_core::{
-    ImageBuildArgs, ImageBuildOutput, MountSource, Recipe, SandboxCloseArgs, SandboxExecArgs,
+    ImageBuildArgs, ImageBuildOutput, ImagePullArgs, ImagePullOutput, ImagePushArgs,
+    ImagePushOutput, MountSource, Recipe, RegistryAuth, SandboxCloseArgs, SandboxExecArgs,
     SandboxExecOutput, SandboxInitArgs, SandboxInitOutput, SandboxListOutputItem,
     SnapshotCreateArgs, SnapshotCreateOutput, SnapshotListOutputItem, SnapshotRemoveArgs,
     VolumeCreateArgs, VolumeCreateOutput, VolumeListOutputItem, VolumeMountCreateArgs,
@@ -115,6 +116,34 @@ impl Client {
             self.api,
             self.start(self.api.virtx_client_build_image, args),
         )
+    }
+
+    /// Pull `reference` from its registry, and point it at what it pulls; without `auth` the
+    /// server pulls anonymously. Its events are the pull's log, then what it pulled.
+    pub fn pull_image(
+        &self,
+        reference: impl Into<String>,
+        auth: Option<RegistryAuth>,
+    ) -> Events<ImagePullOutput, String> {
+        let args = ImagePullArgs {
+            reference: reference.into(),
+            auth,
+        };
+        Events::new(self.api, self.start(self.api.virtx_client_pull_image, args))
+    }
+
+    /// Push the image `reference` points at to the registry `reference` names; without `auth`
+    /// the server pushes anonymously. Its events are the push's log, then what it pushed.
+    pub fn push_image(
+        &self,
+        reference: impl Into<String>,
+        auth: Option<RegistryAuth>,
+    ) -> Events<ImagePushOutput, String> {
+        let args = ImagePushArgs {
+            reference: reference.into(),
+            auth,
+        };
+        Events::new(self.api, self.start(self.api.virtx_client_push_image, args))
     }
 
     /// Every snapshot the server holds.

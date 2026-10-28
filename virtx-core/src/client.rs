@@ -7,7 +7,10 @@ use futures_util::Stream;
 use tokio::process::Command;
 
 use crate::{
-    image::{ImageBuild, ImageBuildArgs, ImageBuildOutput, Recipe},
+    image::{
+        ImageBuild, ImageBuildArgs, ImageBuildOutput, ImagePull, ImagePullArgs, ImagePullOutput,
+        ImagePush, ImagePushArgs, ImagePushOutput, Recipe, RegistryAuth,
+    },
     method::{Event, Request},
     sandbox::{
         SandboxClose, SandboxCloseArgs, SandboxCloseOutput, SandboxExec, SandboxExecArgs,
@@ -60,6 +63,42 @@ impl Client {
             ImageBuildArgs {
                 recipe,
                 reference: reference.into(),
+            },
+        ))
+    }
+
+    /// Pull `reference` from its registry, and point it at what it pulls; without `auth` the
+    /// server pulls anonymously. The stream is the pull's log, a [`Event::Progress`] a line,
+    /// then what it pulled as its last item, an [`Event::Output`] or the error it failed with.
+    /// Dropping it drops the pull.
+    pub fn pull_image(
+        &self,
+        reference: impl Into<String>,
+        auth: Option<RegistryAuth>,
+    ) -> impl Stream<Item = Result<Event<ImagePullOutput, String>, Error>> + Unpin + Send + '_ {
+        Box::pin(self.inner.request_with_progress(
+            ImagePull::NAME,
+            ImagePullArgs {
+                reference: reference.into(),
+                auth,
+            },
+        ))
+    }
+
+    /// Push the image `reference` points at to the registry `reference` names; without `auth`
+    /// the server pushes anonymously. The stream is the push's log, a [`Event::Progress`] a
+    /// line, then what it pushed as its last item, an [`Event::Output`] or the error it failed
+    /// with. Dropping it drops the push.
+    pub fn push_image(
+        &self,
+        reference: impl Into<String>,
+        auth: Option<RegistryAuth>,
+    ) -> impl Stream<Item = Result<Event<ImagePushOutput, String>, Error>> + Unpin + Send + '_ {
+        Box::pin(self.inner.request_with_progress(
+            ImagePush::NAME,
+            ImagePushArgs {
+                reference: reference.into(),
+                auth,
             },
         ))
     }
@@ -286,6 +325,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_pull_streams_its_log_then_its_output() {
+        let client = Client { inner: connect() };
+        let events: Vec<_> = client
+            .pull_image("alpine:3.20", None)
+            .map(Result::unwrap)
+            .collect()
+            .await;
+        let output = ImagePullOutput {
+            digest: "sha256:0".into(),
+        };
+        assert_eq!(
+            events,
+            [
+                Event::Progress(line("pulling alpine:3.20")),
+                Event::Output(output)
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_pull_ends_its_stream_with_the_error() {
+        let client = Client { inner: connect() };
+        let mut pull = client.pull_image("missing", None);
+        assert!(matches!(pull.next().await, Some(Ok(Event::Progress(_)))));
+        assert!(matches!(pull.next().await, Some(Err(Error::Call(_)))));
+        assert!(pull.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_push_carries_its_credentials_and_streams_its_log_then_its_output() {
+        let client = Client { inner: connect() };
+        let auth = RegistryAuth::Bearer {
+            token: "token".into(),
+        };
+        let events: Vec<_> = client
+            .push_image("ghcr.io/owner/jq:latest", Some(auth))
+            .map(Result::unwrap)
+            .collect()
+            .await;
+        let output = ImagePushOutput {
+            digest: "sha256:0".into(),
+        };
+        assert_eq!(
+            events,
+            [
+                Event::Progress(line("pushing ghcr.io/owner/jq:latest as bearer")),
+                Event::Output(output)
+            ]
+        );
+    }
+
+    #[tokio::test]
     async fn an_exec_streams_its_output_then_how_it_ended() {
         let client = Client { inner: connect() };
         let mut exec = client.exec_sandbox("s", ["echo", "hi"], None);
@@ -310,7 +401,7 @@ pub(crate) mod ffi {
     use super::Client;
     use crate::{
         ffi::{Runtime, VirtxBytes, VirtxFuture, VirtxStream, json, release, retain, share},
-        image::ImageBuildArgs,
+        image::{ImageBuildArgs, ImagePullArgs, ImagePushArgs},
         sandbox::{SandboxCloseArgs, SandboxExecArgs, SandboxInitArgs},
         snapshot::{SnapshotCreateArgs, SnapshotRemoveArgs},
         volume::{
@@ -426,6 +517,72 @@ pub(crate) mod ffi {
                 };
                 let mut build = client.build_image(recipe, reference);
                 while let Some(event) = build.next().await {
+                    yield event.map_err(|e| e.to_string());
+                }
+            }
+        })
+    }
+
+    /// `image.pull`: pulls `reference` from its registry and points it at what it pulls, given
+    /// `{"reference": "alpine:3.20", "auth": {...}}`, the optional auth as
+    /// `{"type": "basic", "username": "...", "password": "..."}` or
+    /// `{"type": "bearer", "token": "..."}`. Its items are its log, as
+    /// `virtx_client_build_image`'s are, then what it pulled, as
+    /// `{"output": {"digest": "algorithm:hex"}}`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_pull_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxStream {
+        let args = unsafe { json::<ImagePullArgs>(args, args_len) };
+        unsafe { &(*client).0 }.stream(|client| {
+            async_stream::stream! {
+                let ImagePullArgs { reference, auth } = match args {
+                    Ok(args) => args,
+                    Err(error) => {
+                        yield Err(error);
+                        return;
+                    }
+                };
+                let mut pull = client.pull_image(reference, auth);
+                while let Some(event) = pull.next().await {
+                    yield event.map_err(|e| e.to_string());
+                }
+            }
+        })
+    }
+
+    /// `image.push`: pushes the image `reference` points at to the registry `reference` names,
+    /// given `{"reference": "ghcr.io/owner/name:tag", "auth": {...}}`, the optional auth as in
+    /// `virtx_client_pull_image`. Its items are its log, as `virtx_client_build_image`'s are,
+    /// then what it pushed, as `{"output": {"digest": "algorithm:hex"}}`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_push_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxStream {
+        let args = unsafe { json::<ImagePushArgs>(args, args_len) };
+        unsafe { &(*client).0 }.stream(|client| {
+            async_stream::stream! {
+                let ImagePushArgs { reference, auth } = match args {
+                    Ok(args) => args,
+                    Err(error) => {
+                        yield Err(error);
+                        return;
+                    }
+                };
+                let mut push = client.push_image(reference, auth);
+                while let Some(event) = push.next().await {
                     yield event.map_err(|e| e.to_string());
                 }
             }

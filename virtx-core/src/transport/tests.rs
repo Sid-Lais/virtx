@@ -3,6 +3,8 @@
 //! hand.
 //!
 //! `image.build` sends `pulling <base>` as its progress, and fails for the base `missing`.
+//! `image.pull` does the same for its reference, and `image.push` sends
+//! `pushing <reference> as <auth>`, the type of its credentials or `anonymous`.
 //! `sandbox.exec` runs everything as `echo`, sending its line as its progress.
 
 use std::{sync::Arc, time::Duration};
@@ -18,7 +20,10 @@ use super::{
     CancelScope, Dispatcher, ErrorObject, Methods, Notifier, Server, TransportClient, serve_stdio,
 };
 use crate::{
-    image::{ImageBuild, ImageBuildOutput},
+    image::{
+        ImageBuild, ImageBuildOutput, ImagePull, ImagePullOutput, ImagePush, ImagePushOutput,
+        RegistryAuth,
+    },
     method::{Event, Progress, Request, StreamingRequest},
     sandbox::{SandboxExec, SandboxExecOutput},
 };
@@ -79,6 +84,30 @@ pub fn methods() -> Methods {
                 return Err(ErrorObject::new(1, format!("no image {base}")));
             }
             Ok(ImageBuildOutput {
+                digest: "sha256:0".into(),
+            })
+        })
+        .add::<ImagePull, _, _>(|args, extensions| async move {
+            let notifier = extensions.get::<Notifier>().expect("a notifier");
+            let reference = &args.reference;
+            notifier.notify::<ImagePull>(line(1, format!("pulling {reference}")));
+            if reference == "missing" {
+                return Err(ErrorObject::new(1, format!("no image {reference}")));
+            }
+            Ok(ImagePullOutput {
+                digest: "sha256:0".into(),
+            })
+        })
+        .add::<ImagePush, _, _>(|args, extensions| async move {
+            let notifier = extensions.get::<Notifier>().expect("a notifier");
+            let auth = match args.auth {
+                None => "anonymous",
+                Some(RegistryAuth::Basic { .. }) => "basic",
+                Some(RegistryAuth::Bearer { .. }) => "bearer",
+            };
+            let reference = &args.reference;
+            notifier.notify::<ImagePush>(line(1, format!("pushing {reference} as {auth}")));
+            Ok(ImagePushOutput {
                 digest: "sha256:0".into(),
             })
         })

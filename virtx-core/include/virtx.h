@@ -120,6 +120,32 @@ struct VirtxStream *virtx_client_build_image(struct VirtxClient *client,
                                              const uint8_t *args,
                                              size_t args_len);
 
+// `image.pull`: pulls `reference` from its registry and points it at what it pulls, given
+// `{"reference": "alpine:3.20", "auth": {...}}`, the optional auth as
+// `{"type": "basic", "username": "...", "password": "..."}` or
+// `{"type": "bearer", "token": "..."}`. Its items are its log, as
+// `virtx_client_build_image`'s are, then what it pulled, as
+// `{"output": {"digest": "algorithm:hex"}}`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxStream *virtx_client_pull_image(struct VirtxClient *client,
+                                            const uint8_t *args,
+                                            size_t args_len);
+
+// `image.push`: pushes the image `reference` points at to the registry `reference` names,
+// given `{"reference": "ghcr.io/owner/name:tag", "auth": {...}}`, the optional auth as in
+// `virtx_client_pull_image`. Its items are its log, as `virtx_client_build_image`'s are,
+// then what it pushed, as `{"output": {"digest": "algorithm:hex"}}`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxStream *virtx_client_push_image(struct VirtxClient *client,
+                                            const uint8_t *args,
+                                            size_t args_len);
+
 // `snapshot.list`: answers with the snapshots, as
 // `[{"name": "...", "size": n, "in_use": false}, ...]`.
 //

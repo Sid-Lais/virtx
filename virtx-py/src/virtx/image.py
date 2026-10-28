@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -81,6 +81,33 @@ class Recipe:
 
 
 @dataclass(frozen=True)
+class BasicAuth:
+    """A username, and a password or an access token the registry takes in its place."""
+
+    username: str
+    password: str = field(repr=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        """As the wire has it."""
+        return {"type": "basic", "username": self.username, "password": self.password}
+
+
+@dataclass(frozen=True)
+class BearerAuth:
+    """A token the registry takes as is."""
+
+    token: str = field(repr=False)
+
+    def to_dict(self) -> dict[str, Any]:
+        """As the wire has it."""
+        return {"type": "bearer", "token": self.token}
+
+
+RegistryAuth = BasicAuth | BearerAuth
+"""Credentials for a remote image registry."""
+
+
+@dataclass(frozen=True)
 class ImageBuildOutput:
     """What ``build_image`` built."""
 
@@ -89,4 +116,28 @@ class ImageBuildOutput:
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> ImageBuildOutput:
+        return cls(value["digest"])
+
+
+@dataclass(frozen=True)
+class ImagePullOutput:
+    """What ``pull_image`` pulled."""
+
+    digest: str
+    """The digest of the image's manifest, as ``algorithm:hex``."""
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ImagePullOutput:
+        return cls(value["digest"])
+
+
+@dataclass(frozen=True)
+class ImagePushOutput:
+    """What ``push_image`` pushed."""
+
+    digest: str
+    """The digest of the manifest pushed, as ``algorithm:hex``."""
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ImagePushOutput:
         return cls(value["digest"])

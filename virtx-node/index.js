@@ -60,6 +60,8 @@ const SIGNATURES = {
   virtx_client_retain: ['void', ['uintptr_t']],
   virtx_client_release: ['void', ['uintptr_t']],
   virtx_client_build_image: WITH_ARGS,
+  virtx_client_pull_image: WITH_ARGS,
+  virtx_client_push_image: WITH_ARGS,
   virtx_client_list_snapshot: PLAIN,
   virtx_client_create_snapshot: WITH_ARGS,
   virtx_client_remove_snapshot: WITH_ARGS,
@@ -372,6 +374,14 @@ class Client {
   buildImage(recipe, reference) {
     const declared = recipe instanceof Recipe ? recipe.toJSON() : recipe
     return this._events('virtx_client_build_image', { recipe: declared, reference })
+  }
+
+  pullImage(reference, auth) {
+    return this._events('virtx_client_pull_image', { reference, auth })
+  }
+
+  pushImage(reference, auth) {
+    return this._events('virtx_client_push_image', { reference, auth })
   }
 
   listSnapshot() {

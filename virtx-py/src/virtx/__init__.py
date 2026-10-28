@@ -17,11 +17,16 @@ the sandbox answered for it: an address on this machine's loopback.
 from ._library import LIBRARY_ENV, VirtxError, library_path, load
 from .client import Client, Event, Output, Progress
 from .image import (
+    BasicAuth,
+    BearerAuth,
     ImageBuildOutput,
     ImageDigest,
     ImageName,
+    ImagePullOutput,
+    ImagePushOutput,
     ImageTag,
     Recipe,
+    RegistryAuth,
     image_name,
 )
 from .portforward import PortForwarder
@@ -38,12 +43,16 @@ from .volume import (
 
 __all__ = [
     "LIBRARY_ENV",
+    "BasicAuth",
+    "BearerAuth",
     "Client",
     "Event",
     "GdriveSource",
     "ImageBuildOutput",
     "ImageDigest",
     "ImageName",
+    "ImagePullOutput",
+    "ImagePushOutput",
     "ImageTag",
     "MountSource",
     "MountType",
@@ -53,6 +62,7 @@ __all__ = [
     "PortForwarder",
     "Progress",
     "Recipe",
+    "RegistryAuth",
     "VirtxError",
     "VolumeCreateOutput",
     "VolumeListOutputItem",
