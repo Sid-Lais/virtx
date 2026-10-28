@@ -1,7 +1,7 @@
 //! The typed client: each method of [`method`](crate::method) as a call, over a
 //! [`TransportClient`].
 
-use std::io;
+use std::{io, path::PathBuf};
 
 use futures_util::Stream;
 use tokio::process::Command;
@@ -9,8 +9,9 @@ use tokio::process::Command;
 use crate::{
     Error,
     image::{
-        ImageBuild, ImageBuildArgs, ImageBuildOutput, ImagePull, ImagePullArgs, ImagePullOutput,
-        ImagePush, ImagePushArgs, ImagePushOutput, Recipe, RegistryAuth,
+        ImageBuild, ImageBuildArgs, ImageBuildOutput, ImageDownloadOutput, ImageListOutputItem,
+        ImagePull, ImagePullArgs, ImagePullOutput, ImagePush, ImagePushArgs, ImagePushOutput,
+        ImageUploadOutput, Recipe, RegistryAuth, oci,
     },
     method::{Event, Request},
     sandbox::{
@@ -102,6 +103,59 @@ impl Client {
                 auth,
             },
         ))
+    }
+
+    /// Every tag on the server's images, as `name:tag`, with the digest it points at.
+    pub async fn list_image(&self) -> Result<Vec<ImageListOutputItem>, Error> {
+        oci::list(&self.inner).await
+    }
+
+    /// Point the tag `target` (`name:tag`) at the image `source` names (`name:tag` or
+    /// `name@algorithm:hex`), moving it if it is in use.
+    pub async fn tag_image(
+        &self,
+        source: impl AsRef<str>,
+        target: impl AsRef<str>,
+    ) -> Result<(), Error> {
+        oci::tag(&self.inner, source.as_ref(), target.as_ref()).await
+    }
+
+    /// Remove the tag `reference` (`name:tag`), leaving the image it points at.
+    pub async fn untag_image(&self, reference: impl AsRef<str>) -> Result<(), Error> {
+        oci::untag(&self.inner, reference.as_ref()).await
+    }
+
+    /// Remove the image `reference` names (`name:tag` or `name@algorithm:hex`), and every tag on
+    /// it in that name.
+    pub async fn remove_image(&self, reference: impl AsRef<str>) -> Result<(), Error> {
+        oci::remove(&self.inner, reference.as_ref()).await
+    }
+
+    /// Write the image `reference` names to `path`, as an OCI image layout in a tar archive,
+    /// replacing what is there once all of it is written. The stream is a line of log a blob,
+    /// then what it wrote as its last item, an [`Event::Output`] or the error it failed with.
+    /// Dropping it drops the download, and writes nothing.
+    pub fn download_image(
+        &self,
+        reference: impl Into<String>,
+        path: impl Into<PathBuf>,
+    ) -> impl Stream<Item = Result<Event<ImageDownloadOutput, String>, Error>> + Unpin + Send + '_
+    {
+        Box::pin(oci::download(&self.inner, reference.into(), path.into()))
+    }
+
+    /// Upload the image in the archive at `path`, an OCI image layout in a tar archive, and
+    /// point the tag `reference` (`name:tag`) at it: the archive's only image, or the one it
+    /// names by that tag. Blobs the server has already are skipped. The stream is a line of log
+    /// a blob, then what it uploaded as its last item, an [`Event::Output`] or the error it
+    /// failed with. Dropping it drops the upload, and moves no tag.
+    pub fn upload_image(
+        &self,
+        path: impl Into<PathBuf>,
+        reference: impl Into<String>,
+    ) -> impl Stream<Item = Result<Event<ImageUploadOutput, String>, Error>> + Unpin + Send + '_
+    {
+        Box::pin(oci::upload(&self.inner, path.into(), reference.into()))
     }
 
     /// Every snapshot the server holds.
@@ -402,7 +456,10 @@ pub(crate) mod ffi {
     use super::Client;
     use crate::{
         ffi::{Runtime, VirtxBytes, VirtxFuture, VirtxStream, json, release, retain, share},
-        image::{ImageBuildArgs, ImagePullArgs, ImagePushArgs},
+        image::{
+            ImageBuildArgs, ImageDownloadArgs, ImagePullArgs, ImagePushArgs, ImageRemoveArgs,
+            ImageTagArgs, ImageUntagArgs, ImageUploadArgs,
+        },
         sandbox::{SandboxCloseArgs, SandboxExecArgs, SandboxInitArgs},
         snapshot::{SnapshotCreateArgs, SnapshotRemoveArgs},
         volume::{
@@ -584,6 +641,147 @@ pub(crate) mod ffi {
                 };
                 let mut push = client.push_image(reference, auth);
                 while let Some(event) = push.next().await {
+                    yield event.map_err(|e| e.to_string());
+                }
+            }
+        })
+    }
+
+    /// Answers with every tag on the server's images, as
+    /// `[{"reference": "name:tag", "digest": "algorithm:hex"}, ...]`.
+    ///
+    /// # Safety
+    ///
+    /// `client` is as in `virtx_client_list_snapshot`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_list_image(client: *mut VirtxClient) -> *mut VirtxFuture {
+        unsafe { &(*client).0 }
+            .future(|client| async move { client.list_image().await.map_err(|e| e.to_string()) })
+    }
+
+    /// Points the tag `target` at the image `source` names, given
+    /// `{"source": "name:tag" or "name@algorithm:hex", "target": "name:tag"}`. Answers with
+    /// `null`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_tag_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxFuture {
+        let args = unsafe { json::<ImageTagArgs>(args, args_len) };
+        unsafe { &(*client).0 }.future(|client| async move {
+            let ImageTagArgs { source, target } = args?;
+            client
+                .tag_image(source, target)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
+
+    /// Removes the tag `reference`, leaving its image, given `{"reference": "name:tag"}`.
+    /// Answers with `null`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_untag_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxFuture {
+        let args = unsafe { json::<ImageUntagArgs>(args, args_len) };
+        unsafe { &(*client).0 }.future(|client| async move {
+            client
+                .untag_image(args?.reference)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
+
+    /// Removes the image `reference` names and every tag on it in that name, given
+    /// `{"reference": "name:tag" or "name@algorithm:hex"}`. Answers with `null`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_remove_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxFuture {
+        let args = unsafe { json::<ImageRemoveArgs>(args, args_len) };
+        unsafe { &(*client).0 }.future(|client| async move {
+            client
+                .remove_image(args?.reference)
+                .await
+                .map_err(|e| e.to_string())
+        })
+    }
+
+    /// Writes the image `reference` names to `path` as an OCI image layout in a tar archive,
+    /// given `{"reference": "name:tag" or "name@algorithm:hex", "path": "..."}`. Its items are
+    /// its log, a line a blob, as `virtx_client_build_image`'s are, then what it wrote, as
+    /// `{"output": {"digest": "algorithm:hex"}}`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_download_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxStream {
+        let args = unsafe { json::<ImageDownloadArgs>(args, args_len) };
+        unsafe { &(*client).0 }.stream(|client| {
+            async_stream::stream! {
+                let ImageDownloadArgs { reference, path } = match args {
+                    Ok(args) => args,
+                    Err(error) => {
+                        yield Err(error);
+                        return;
+                    }
+                };
+                let mut download = client.download_image(reference, path);
+                while let Some(event) = download.next().await {
+                    yield event.map_err(|e| e.to_string());
+                }
+            }
+        })
+    }
+
+    /// Uploads the image in the OCI image layout archive at `path` and points the tag
+    /// `reference` at it, given `{"path": "...", "reference": "name:tag"}`. Its items are its
+    /// log, a line a blob, as `virtx_client_build_image`'s are, then what it uploaded, as
+    /// `{"output": {"digest": "algorithm:hex"}}`.
+    ///
+    /// # Safety
+    ///
+    /// As `virtx_client_build_image`.
+    #[unsafe(no_mangle)]
+    pub unsafe extern "C" fn virtx_client_upload_image(
+        client: *mut VirtxClient,
+        args: *const u8,
+        args_len: usize,
+    ) -> *mut VirtxStream {
+        let args = unsafe { json::<ImageUploadArgs>(args, args_len) };
+        unsafe { &(*client).0 }.stream(|client| {
+            async_stream::stream! {
+                let ImageUploadArgs { path, reference } = match args {
+                    Ok(args) => args,
+                    Err(error) => {
+                        yield Err(error);
+                        return;
+                    }
+                };
+                let mut upload = client.upload_image(path, reference);
+                while let Some(event) = upload.next().await {
                     yield event.map_err(|e| e.to_string());
                 }
             }

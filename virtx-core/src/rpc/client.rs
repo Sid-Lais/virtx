@@ -62,7 +62,7 @@ impl TransportClient {
                 params: &params?,
             };
             let message = serde_json::to_vec(&request).map_err(|e| Error::Json(e.to_string()))?;
-            let request = http::Request::post("rpc")
+            let request = http::Request::post("/rpc")
                 .header(header::CONTENT_TYPE, JSON)
                 .header(header::ACCEPT, format!("{JSON}, {EVENT_STREAM}"))
                 .body(full(message))

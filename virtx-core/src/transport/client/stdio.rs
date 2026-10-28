@@ -78,7 +78,7 @@ impl Stdio {
         }
     }
 
-    /// Send `request`, whose URI is a path such as `rpc`.
+    /// Send `request`, whose URI is a path such as `/rpc`.
     pub(super) async fn send(
         &self,
         request: http::Request<Body>,
@@ -88,7 +88,7 @@ impl Stdio {
         sender.ready().await.map_err(gone)?;
         // The authority is not checked.
         let (mut parts, body) = request.into_parts();
-        parts.uri = format!("http://virtx/{}", parts.uri)
+        parts.uri = format!("http://virtx{}", parts.uri)
             .parse()
             .map_err(|e| format!("{e}"))?;
         let request = http::Request::from_parts(parts, body);

@@ -6,5 +6,15 @@
 //! the manifest a reference points at. Every request is sent over the client's own connection,
 //! so it goes wherever `/rpc` does, over either transport.
 
+mod api;
+mod archive;
+mod images;
 mod manifest;
 mod reference;
+#[cfg(all(test, feature = "server"))]
+mod tests;
+
+pub(crate) use self::{
+    archive::{download, upload},
+    images::{list, remove, tag, untag},
+};

@@ -62,6 +62,12 @@ const SIGNATURES = {
   virtx_client_build_image: WITH_ARGS,
   virtx_client_pull_image: WITH_ARGS,
   virtx_client_push_image: WITH_ARGS,
+  virtx_client_list_image: PLAIN,
+  virtx_client_tag_image: WITH_ARGS,
+  virtx_client_untag_image: WITH_ARGS,
+  virtx_client_remove_image: WITH_ARGS,
+  virtx_client_download_image: WITH_ARGS,
+  virtx_client_upload_image: WITH_ARGS,
   virtx_client_list_snapshot: PLAIN,
   virtx_client_create_snapshot: WITH_ARGS,
   virtx_client_remove_snapshot: WITH_ARGS,
@@ -382,6 +388,30 @@ class Client {
 
   pushImage(reference, auth) {
     return this._events('virtx_client_push_image', { reference, auth })
+  }
+
+  listImage() {
+    return this._call('virtx_client_list_image')
+  }
+
+  async tagImage(source, target) {
+    await this._call('virtx_client_tag_image', { source, target })
+  }
+
+  async untagImage(reference) {
+    await this._call('virtx_client_untag_image', { reference })
+  }
+
+  async removeImage(reference) {
+    await this._call('virtx_client_remove_image', { reference })
+  }
+
+  downloadImage(reference, path) {
+    return this._events('virtx_client_download_image', { reference, path })
+  }
+
+  uploadImage(path, reference) {
+    return this._events('virtx_client_upload_image', { path, reference })
   }
 
   listSnapshot() {

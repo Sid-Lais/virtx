@@ -146,6 +146,69 @@ struct VirtxStream *virtx_client_push_image(struct VirtxClient *client,
                                             const uint8_t *args,
                                             size_t args_len);
 
+// Answers with every tag on the server's images, as
+// `[{"reference": "name:tag", "digest": "algorithm:hex"}, ...]`.
+//
+// # Safety
+//
+// `client` is as in `virtx_client_list_snapshot`.
+struct VirtxFuture *virtx_client_list_image(struct VirtxClient *client);
+
+// Points the tag `target` at the image `source` names, given
+// `{"source": "name:tag" or "name@algorithm:hex", "target": "name:tag"}`. Answers with
+// `null`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxFuture *virtx_client_tag_image(struct VirtxClient *client,
+                                           const uint8_t *args,
+                                           size_t args_len);
+
+// Removes the tag `reference`, leaving its image, given `{"reference": "name:tag"}`.
+// Answers with `null`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxFuture *virtx_client_untag_image(struct VirtxClient *client,
+                                             const uint8_t *args,
+                                             size_t args_len);
+
+// Removes the image `reference` names and every tag on it in that name, given
+// `{"reference": "name:tag" or "name@algorithm:hex"}`. Answers with `null`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxFuture *virtx_client_remove_image(struct VirtxClient *client,
+                                              const uint8_t *args,
+                                              size_t args_len);
+
+// Writes the image `reference` names to `path` as an OCI image layout in a tar archive,
+// given `{"reference": "name:tag" or "name@algorithm:hex", "path": "..."}`. Its items are
+// its log, a line a blob, as `virtx_client_build_image`'s are, then what it wrote, as
+// `{"output": {"digest": "algorithm:hex"}}`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxStream *virtx_client_download_image(struct VirtxClient *client,
+                                                const uint8_t *args,
+                                                size_t args_len);
+
+// Uploads the image in the OCI image layout archive at `path` and points the tag
+// `reference` at it, given `{"path": "...", "reference": "name:tag"}`. Its items are its
+// log, a line a blob, as `virtx_client_build_image`'s are, then what it uploaded, as
+// `{"output": {"digest": "algorithm:hex"}}`.
+//
+// # Safety
+//
+// As `virtx_client_build_image`.
+struct VirtxStream *virtx_client_upload_image(struct VirtxClient *client,
+                                              const uint8_t *args,
+                                              size_t args_len);
+
 // `snapshot.list`: answers with the snapshots, as
 // `[{"name": "...", "size": n, "in_use": false}, ...]`.
 //

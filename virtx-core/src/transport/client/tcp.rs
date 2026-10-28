@@ -29,7 +29,7 @@ impl Tcp {
         })
     }
 
-    /// Send `request`, whose URI is a path relative to the base, such as `rpc`.
+    /// Send `request`, whose URI is a path under the base, such as `/rpc`.
     pub(super) async fn send(
         &self,
         request: http::Request<Body>,
@@ -37,7 +37,7 @@ impl Tcp {
         let (parts, body) = request.into_parts();
         let url = self
             .base
-            .join(&parts.uri.to_string())
+            .join(parts.uri.to_string().trim_start_matches('/'))
             .map_err(|e| format!("{e:#}"))?;
         let response = self
             .http

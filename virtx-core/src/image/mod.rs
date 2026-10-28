@@ -1,7 +1,7 @@
 mod content;
 mod image_name;
 #[cfg(feature = "ffi")]
-mod oci;
+pub(crate) mod oci;
 mod recipe;
 mod registry_auth;
 mod store;

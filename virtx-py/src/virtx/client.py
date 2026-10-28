@@ -6,6 +6,7 @@ import asyncio
 import atexit
 import ctypes
 import json
+import os
 import weakref
 from collections.abc import AsyncIterator, Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -14,9 +15,12 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 from ._library import OK, Library, VirtxError, _Bytes, library
 from .image import (
     ImageBuildOutput,
+    ImageDownloadOutput,
+    ImageListOutputItem,
     ImageName,
     ImagePullOutput,
     ImagePushOutput,
+    ImageUploadOutput,
     Recipe,
     RegistryAuth,
     image_name,
@@ -225,6 +229,49 @@ class Client:
             "virtx_client_push_image",
             _args(reference=reference, auth=auth and auth.to_dict()),
             ImagePushOutput.from_dict,
+        )
+
+    async def list_image(self) -> list[ImageListOutputItem]:
+        """Every tag on the server's images, as ``name:tag``, with the digest it points at."""
+        items = await self._call("virtx_client_list_image")
+        return [ImageListOutputItem.from_dict(item) for item in items]
+
+    async def tag_image(self, source: str, target: str) -> None:
+        """Point the tag ``target`` (``name:tag``) at the image ``source`` names (``name:tag`` or
+        ``name@algorithm:hex``), moving it if it is in use."""
+        await self._call("virtx_client_tag_image", _args(source=source, target=target))
+
+    async def untag_image(self, reference: str) -> None:
+        """Remove the tag ``reference`` (``name:tag``), leaving the image it points at."""
+        await self._call("virtx_client_untag_image", _args(reference=reference))
+
+    async def remove_image(self, reference: str) -> None:
+        """Remove the image ``reference`` names (``name:tag`` or ``name@algorithm:hex``), and
+        every tag on it in that name."""
+        await self._call("virtx_client_remove_image", _args(reference=reference))
+
+    def download_image(
+        self, reference: str, path: str | os.PathLike[str]
+    ) -> AsyncIterator[Event[ImageDownloadOutput, str]]:
+        """Write the image ``reference`` names to ``path``, as an OCI image layout in a tar
+        archive, replacing what is there once all of it is written. Its events are a line of log
+        a blob, then what it wrote."""
+        return self._events(
+            "virtx_client_download_image",
+            _args(reference=reference, path=os.fspath(path)),
+            ImageDownloadOutput.from_dict,
+        )
+
+    def upload_image(
+        self, path: str | os.PathLike[str], reference: str
+    ) -> AsyncIterator[Event[ImageUploadOutput, str]]:
+        """Upload the image in the OCI image layout archive at ``path``, and point the tag
+        ``reference`` (``name:tag``) at it: the archive's only image, or the one it names by that
+        tag. Its events are a line of log a blob, then what it uploaded."""
+        return self._events(
+            "virtx_client_upload_image",
+            _args(path=os.fspath(path), reference=reference),
+            ImageUploadOutput.from_dict,
         )
 
     async def list_snapshot(self) -> list[dict[str, Any]]:

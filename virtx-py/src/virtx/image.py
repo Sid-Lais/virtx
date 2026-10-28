@@ -141,3 +141,42 @@ class ImagePushOutput:
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> ImagePushOutput:
         return cls(value["digest"])
+
+
+@dataclass(frozen=True)
+class ImageListOutputItem:
+    """One tag on the server's images."""
+
+    reference: str
+    """The tag, as ``name:tag``."""
+
+    digest: str
+    """The digest of the manifest it points at, as ``algorithm:hex``."""
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ImageListOutputItem:
+        return cls(value["reference"], value["digest"])
+
+
+@dataclass(frozen=True)
+class ImageDownloadOutput:
+    """What ``download_image`` wrote."""
+
+    digest: str
+    """The digest of the manifest written, as ``algorithm:hex``."""
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ImageDownloadOutput:
+        return cls(value["digest"])
+
+
+@dataclass(frozen=True)
+class ImageUploadOutput:
+    """What ``upload_image`` uploaded."""
+
+    digest: str
+    """The digest of the manifest uploaded, as ``algorithm:hex``."""
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, Any]) -> ImageUploadOutput:
+        return cls(value["digest"])
