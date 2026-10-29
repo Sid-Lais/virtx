@@ -391,7 +391,7 @@ Rebuilding under the same ref moves it to the new build, while `ImageSource::dig
 
 `ConsoleClient` is the part you work with. `build()` boots a Linux VM from the image you named and gives you a console: run commands in it with `exec`, and read and write its files.
 
-The console talks to a small server, `virtx-uvm`, over stdio. Your program starts that server itself and it exits with your program, which is why there is nothing to install or keep running. `ensure_virtx()` downloads the server into the cache the first time and does nothing after that.
+The console talks to a small server, `virtx-uvm`, over stdio. Your program starts that server as a child process and it shuts down when you close the console, so there is nothing to install or keep running. `ensure_virtx()` downloads the server into the cache the first time and does nothing after that.
 
 What the VM sees is a filesystem you put together: host folders, files that live only in memory and remote stores, each mounted at a path you choose, read-write or read-only. Network access, CPUs, memory and disk are options on the same builder. The line virtx draws is the one between the VM and your machine; [SECURITY.md](SECURITY.md) says what that covers.
 
